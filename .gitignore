@@ -35,3 +35,14 @@ out/
 
 ### VS Code ###
 .vscode/
+/.firebaserc
+/.gitattributes
+/src/test/java/com/collabnotes/CollabNotes/CollabNotesApplicationTests.java
+/src/main/resources/focus-poet-457511-n7-firebase-adminsdk-fbsvc-39626c7ba6.json
+/gradle/wrapper/gradle-wrapper.jar
+/gradle/wrapper/gradle-wrapper.properties
+/gradlew
+/gradlew.bat
+/.firebase/hosting.YnVpbGQ.cache
+/prometheus.yml
+/src/main/resources/static/websocket-test.html
