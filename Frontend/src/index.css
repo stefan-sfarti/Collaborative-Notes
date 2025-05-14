@@ -1,0 +1,12 @@
+
+@media (max-width: 600px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+}
+
+.center-vertical {
+  display: flex;
+  align-items: center;
+  min-height: 100vh;
+}
