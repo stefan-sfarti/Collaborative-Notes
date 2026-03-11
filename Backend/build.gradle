@@ -20,18 +20,22 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
-	implementation 'com.google.firebase:firebase-admin:9.2.0'
-	implementation 'com.google.firebase:firebase-admin:9.4.3'
-	implementation platform('com.google.cloud:libraries-bom:26.56.0')
-	implementation 'com.google.cloud:google-cloud-pubsub'
-	implementation 'com.google.cloud:google-cloud-bigquery:2.8.0'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-cache'
+	
+	implementation 'org.postgresql:postgresql'
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-postgresql'
+	
 	implementation 'io.micrometer:micrometer-registry-prometheus'
-	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation("com.github.loki4j:loki-logback-appender:1.4.0")
 	implementation("net.logstash.logback:logstash-logback-encoder:7.4")
 	implementation 'org.apache.commons:commons-pool2'
+	
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

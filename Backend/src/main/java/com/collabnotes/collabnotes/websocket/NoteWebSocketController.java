@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import com.collabnotes.collabnotes.websocket.message.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -58,8 +59,8 @@ public class NoteWebSocketController {
     @MessageMapping("/notes/{noteId}/update")
     @SendTo("/topic/notes/{noteId}")
     public NoteContentUpdateMessage updateNote(@DestinationVariable String noteId,
-            NoteContentUpdateMessage message,
-            @Header(value = "Authorization", required = false) String token) throws Exception {
+                                               NoteContentUpdateMessage message,
+                                               @Header(value = "Authorization", required = false) String token) throws Exception {
         long startTime = System.currentTimeMillis();
         try {
             String firebaseToken = token;
@@ -99,8 +100,8 @@ public class NoteWebSocketController {
     @MessageMapping("/notes/{noteId}/partial")
     @SendTo("/topic/notes/{noteId}/partial")
     public NotePartialUpdateMessage updateNotePartial(@DestinationVariable String noteId,
-            NotePartialUpdateMessage message,
-            @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
+                                                      NotePartialUpdateMessage message,
+                                                      @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
 
         String firebaseToken = token;
         if (token != null && token.startsWith("Bearer ")) {
@@ -128,8 +129,8 @@ public class NoteWebSocketController {
     @MessageMapping("/notes/{noteId}/cursor")
     @SendTo("/topic/notes/{noteId}/cursors")
     public CursorPositionMessage updateCursorPosition(@DestinationVariable String noteId,
-            CursorPositionMessage message,
-            @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
+                                                      CursorPositionMessage message,
+                                                      @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
 
         String firebaseToken = token;
         if (token != null && token.startsWith("Bearer ")) {
@@ -224,8 +225,8 @@ public class NoteWebSocketController {
     @MessageMapping("/notes/{noteId}/comment")
     @SendTo("/topic/notes/{noteId}/comments")
     public CommentMessage handleComment(@DestinationVariable String noteId,
-            CommentMessage message,
-            @Header(value = "Authorization", required = false) String token)
+                                        CommentMessage message,
+                                        @Header(value = "Authorization", required = false) String token)
             throws ExecutionException, InterruptedException, FirebaseAuthException {
 
         String firebaseToken = token;

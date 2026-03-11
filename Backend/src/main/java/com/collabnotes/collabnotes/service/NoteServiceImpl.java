@@ -27,17 +27,17 @@ public class NoteServiceImpl implements NoteService {
     private static final Logger logger = LoggerFactory.getLogger(NoteServiceImpl.class);
     private static final String COLLECTION_NAME = "notes";
 
-    @Autowired
-    private Firestore firestore;
+    private final Firestore firestore;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final PubSubPublisherService pubSubPublisherService;
+    private final MetricsService metricsService;
 
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
-
-    @Autowired
-    private PubSubPublisherService pubSubPublisherService;
-
-    @Autowired
-    private MetricsService metricsService;
+    public NoteServiceImpl(Firestore firestore, SimpMessagingTemplate messagingTemplate, PubSubPublisherService pubSubPublisherService, MetricsService metricsService) {
+        this.firestore = firestore;
+        this.messagingTemplate = messagingTemplate;
+        this.pubSubPublisherService = pubSubPublisherService;
+        this.metricsService = metricsService;
+    }
 
     @Override
     public NoteDTO createNote(NoteDTO noteDTO, String userId) throws ExecutionException, InterruptedException {

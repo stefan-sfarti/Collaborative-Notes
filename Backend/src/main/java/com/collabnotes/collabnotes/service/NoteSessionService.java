@@ -16,11 +16,13 @@ public class NoteSessionService {
     private static final String NOTE_USERS_PREFIX = "note:users:";
     private static final String USER_ACTIVITY_PREFIX = "user:activity:";
 
-    @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final MetricsService metricsService;
 
-    @Autowired
-    private MetricsService metricsService;
+    public NoteSessionService(RedisTemplate<String, Object> redisTemplate, MetricsService metricsService) {
+        this.redisTemplate = redisTemplate;
+        this.metricsService = metricsService;
+    }
 
     /**
      * Add a user to the active session for a note

@@ -34,6 +34,7 @@ out/
 /.nb-gradle/
 
 ### VS Code ###
+/Frontend/node_modules/**
 .vscode/
 /.firebaserc
 /.gitattributes
