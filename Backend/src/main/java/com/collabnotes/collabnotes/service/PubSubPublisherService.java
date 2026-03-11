@@ -1,4 +1,4 @@
-package com.collabnotes.CollabNotes.service;
+package com.collabnotes.collabnotes.service;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.api.gax.core.FixedCredentialsProvider;
@@ -41,7 +41,8 @@ public class PubSubPublisherService {
                     .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
                     .build();
 
-            String message = String.format("{\"noteId\": \"%s\", \"userId\": \"%s\", \"action\": \"%s\", \"timestamp\": %d}",
+            String message = String.format(
+                    "{\"noteId\": \"%s\", \"userId\": \"%s\", \"action\": \"%s\", \"timestamp\": %d}",
                     noteId, userId, action, System.currentTimeMillis());
 
             ByteString data = ByteString.copyFromUtf8(message);
@@ -54,7 +55,8 @@ public class PubSubPublisherService {
             if (publisher != null) {
                 try {
                     publisher.shutdown();
-                } catch (Exception ignore) {}
+                } catch (Exception ignore) {
+                }
             }
         }
     }

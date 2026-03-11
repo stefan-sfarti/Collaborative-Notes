@@ -1,4 +1,4 @@
-package com.collabnotes.CollabNotes.websocket;
+package com.collabnotes.collabnotes.websocket;
 
 import java.util.Date;
 import java.util.List;
@@ -268,7 +268,7 @@ class CommentMessage extends BaseWebSocketMessage {
     private int startPosition;
     private int endPosition;
     private String commentText;
-    private String action;  // "add", "update", "delete"
+    private String action; // "add", "update", "delete"
 
     public CommentMessage() {
         super();
@@ -426,7 +426,6 @@ class NoteStateMessage extends BaseWebSocketMessage {
         private String email;
         private String displayName;
         private boolean isTyping;
-
 
         public String getUserId() {
             return userId;

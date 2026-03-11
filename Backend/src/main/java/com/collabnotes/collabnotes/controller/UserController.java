@@ -1,14 +1,21 @@
-package com.collabnotes.CollabNotes.controller;
+package com.collabnotes.collabnotes.controller;
 
-import com.collabnotes.CollabNotes.dto.UserEmailRequest;
-import com.collabnotes.CollabNotes.dto.UserResponse;
-import com.collabnotes.CollabNotes.service.UserService;
-import com.collabnotes.CollabNotes.util.FirebaseAuthUtil;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.collabnotes.collabnotes.dto.UserEmailRequest;
+import com.collabnotes.collabnotes.dto.UserResponse;
+import com.collabnotes.collabnotes.service.UserService;
+import com.collabnotes.collabnotes.util.FirebaseAuthUtil;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/users")
@@ -22,7 +29,8 @@ public class UserController {
 
     /**
      * Endpoint to look up a user by email and return their ID
-     * @param request The HTTP request with the auth token
+     * 
+     * @param request      The HTTP request with the auth token
      * @param emailRequest Request body containing the email to look up
      * @return The user ID if found
      */
@@ -52,8 +60,9 @@ public class UserController {
 
     /**
      * Endpoint to look up a user by ID and return their email
+     * 
      * @param request The HTTP request with the auth token
-     * @param userId The ID of the user to look up
+     * @param userId  The ID of the user to look up
      * @return The user email if found
      */
     @GetMapping("/lookup/{userId}")
@@ -82,6 +91,7 @@ public class UserController {
 
     /**
      * Get current user information
+     * 
      * @param request The HTTP request with the auth token
      * @return Current user data
      */

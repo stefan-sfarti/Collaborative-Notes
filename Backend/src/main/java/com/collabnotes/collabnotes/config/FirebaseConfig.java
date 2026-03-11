@@ -1,4 +1,4 @@
-package com.collabnotes.CollabNotes.config;
+package com.collabnotes.collabnotes.config;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.Firestore;
@@ -53,12 +53,10 @@ public class FirebaseConfig {
             InputStream serviceAccount = serviceAccountResource.getInputStream();
             GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
 
-
             FirestoreOptions firestoreOptions = FirestoreOptions.newBuilder()
                     .setProjectId("focus-poet-457511-n7")
                     .setCredentials(credentials)
                     .build();
-
 
             return firestoreOptions.getService();
         } catch (IOException e) {

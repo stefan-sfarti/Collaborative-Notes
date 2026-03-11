@@ -1,4 +1,4 @@
-package com.collabnotes.CollabNotes.metrics;
+package com.collabnotes.collabnotes.metrics;
 
 import io.micrometer.core.instrument.*;
 import org.springframework.stereotype.Service;
@@ -34,12 +34,12 @@ public class MetricsService {
 
     public void recordGauge(String name, double value) {
         Gauge.builder("app.gauge." + name, () -> value)
-             .register(meterRegistry);
+                .register(meterRegistry);
     }
 
     public void recordUserActivity(String noteId, int activeUsers) {
         Gauge.builder("app.notes.active_users", () -> activeUsers)
-             .tag("noteId", noteId)
-             .register(meterRegistry);
+                .tag("noteId", noteId)
+                .register(meterRegistry);
     }
 }

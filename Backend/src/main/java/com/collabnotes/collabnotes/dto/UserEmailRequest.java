@@ -1,4 +1,4 @@
-package com.collabnotes.CollabNotes.dto;
+package com.collabnotes.collabnotes.dto;
 
 /**
  * DTO for email lookup requests

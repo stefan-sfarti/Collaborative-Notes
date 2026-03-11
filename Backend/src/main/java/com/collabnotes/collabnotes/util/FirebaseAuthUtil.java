@@ -1,4 +1,4 @@
-package com.collabnotes.CollabNotes.util;
+package com.collabnotes.collabnotes.util;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
@@ -15,7 +15,9 @@ public class FirebaseAuthUtil {
 
     /**
      * Verifies the Firebase ID token from the request
-     * @param request HttpServletRequest containing the token in the Authorization header
+     * 
+     * @param request HttpServletRequest containing the token in the Authorization
+     *                header
      * @return User ID if token is valid, null otherwise
      */
     public String verifyToken(HttpServletRequest request) {
@@ -35,7 +37,9 @@ public class FirebaseAuthUtil {
 
     /**
      * Gets the full decoded token with all claims
-     * @param request HttpServletRequest containing the token in the Authorization header
+     * 
+     * @param request HttpServletRequest containing the token in the Authorization
+     *                header
      * @return FirebaseToken if valid, null otherwise
      */
     public FirebaseToken getDecodedToken(HttpServletRequest request) {

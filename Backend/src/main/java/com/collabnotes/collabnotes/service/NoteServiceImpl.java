@@ -1,10 +1,13 @@
-package com.collabnotes.CollabNotes.service;
+package com.collabnotes.collabnotes.service;
 
-import com.collabnotes.CollabNotes.dto.NoteDTO;
-import com.collabnotes.CollabNotes.metrics.MetricsService;
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,8 +15,11 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.concurrent.ExecutionException;
+import com.collabnotes.collabnotes.dto.NoteDTO;
+import com.collabnotes.collabnotes.metrics.MetricsService;
+import com.google.cloud.firestore.DocumentReference;
+import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.Firestore;
 
 @Service
 public class NoteServiceImpl implements NoteService {
@@ -32,7 +38,6 @@ public class NoteServiceImpl implements NoteService {
 
     @Autowired
     private MetricsService metricsService;
-
 
     @Override
     public NoteDTO createNote(NoteDTO noteDTO, String userId) throws ExecutionException, InterruptedException {
@@ -110,7 +115,8 @@ public class NoteServiceImpl implements NoteService {
     }
 
     @Override
-    public NoteDTO updateNote(String id, NoteDTO noteDTO, String userId) throws ExecutionException, InterruptedException {
+    public NoteDTO updateNote(String id, NoteDTO noteDTO, String userId)
+            throws ExecutionException, InterruptedException {
         // Get existing note
         DocumentSnapshot document = firestore.collection(COLLECTION_NAME).document(id).get().get();
 
@@ -170,7 +176,8 @@ public class NoteServiceImpl implements NoteService {
     }
 
     @Override
-    public boolean addCollaborator(String noteId, String collaboratorId, String userId) throws ExecutionException, InterruptedException {
+    public boolean addCollaborator(String noteId, String collaboratorId, String userId)
+            throws ExecutionException, InterruptedException {
         logger.info("Adding collaborator {} to note {} by user {}", collaboratorId, noteId, userId);
         DocumentSnapshot document = firestore.collection(COLLECTION_NAME).document(noteId).get().get();
 
@@ -230,7 +237,8 @@ public class NoteServiceImpl implements NoteService {
     }
 
     @Override
-    public boolean removeCollaborator(String noteId, String collaboratorId, String userId) throws ExecutionException, InterruptedException {
+    public boolean removeCollaborator(String noteId, String collaboratorId, String userId)
+            throws ExecutionException, InterruptedException {
         logger.info("Removing collaborator {} from note {} by user {}", collaboratorId, noteId, userId);
         // Get existing note
         DocumentSnapshot document = firestore.collection(COLLECTION_NAME).document(noteId).get().get();
@@ -273,7 +281,8 @@ public class NoteServiceImpl implements NoteService {
     }
 
     @Override
-    public List<String> getNoteCollaborators(String noteId, String userId) throws ExecutionException, InterruptedException {
+    public List<String> getNoteCollaborators(String noteId, String userId)
+            throws ExecutionException, InterruptedException {
         logger.info("Retrieving collaborators for note {} by user {}", noteId, userId);
 
         // Get the note document from Firestore
@@ -292,7 +301,8 @@ public class NoteServiceImpl implements NoteService {
         logger.debug("Retrieved note: id={}, ownerId={}, collaborators={}",
                 note.getId(), note.getOwnerId(), note.getCollaboratorIds());
 
-        // Check if user has access to view collaborators (must be owner or collaborator)
+        // Check if user has access to view collaborators (must be owner or
+        // collaborator)
         boolean isOwner = userId.equals(note.getOwnerId());
         boolean isCollaborator = note.getCollaboratorIds() != null &&
                 note.getCollaboratorIds().contains(userId);
@@ -373,6 +383,5 @@ public class NoteServiceImpl implements NoteService {
         return userId.equals(note.getOwnerId()) ||
                 (note.getCollaboratorIds() != null && note.getCollaboratorIds().contains(userId));
     }
-
 
 }

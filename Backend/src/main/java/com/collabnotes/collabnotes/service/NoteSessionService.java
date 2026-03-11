@@ -1,14 +1,15 @@
-package com.collabnotes.CollabNotes.service;
-
-import com.collabnotes.CollabNotes.metrics.MetricsService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
+package com.collabnotes.collabnotes.service;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+
+import com.collabnotes.collabnotes.metrics.MetricsService;
 
 @Service
 public class NoteSessionService {
@@ -71,6 +72,7 @@ public class NoteSessionService {
 
     /**
      * Get last activity timestamp for a user on a note
+     * 
      * @return timestamp in milliseconds or 0 if not found
      */
     public long getLastActivity(String noteId, String userId) {
@@ -116,15 +118,19 @@ public class NoteSessionService {
     }
 
     /**
-     * Clean up inactive users (users who haven't sent activity for a specified time)
-     * @param inactiveThresholdMs time in milliseconds after which a user is considered inactive
+     * Clean up inactive users (users who haven't sent activity for a specified
+     * time)
+     * 
+     * @param inactiveThresholdMs time in milliseconds after which a user is
+     *                            considered inactive
      */
     public void cleanupInactiveUsers(long inactiveThresholdMs) {
         long currentTime = System.currentTimeMillis();
 
         // Get all note activity keys (scan would be more efficient in production)
         Set<String> activityKeys = redisTemplate.keys(USER_ACTIVITY_PREFIX + "*");
-        if (activityKeys == null) return;
+        if (activityKeys == null)
+            return;
 
         for (String activityKey : activityKeys) {
             String noteId = activityKey.substring(USER_ACTIVITY_PREFIX.length());
@@ -141,6 +147,5 @@ public class NoteSessionService {
             }
         }
     }
-
 
 }

@@ -1,57 +1,67 @@
-package com.collabnotes.CollabNotes.websocket;
+package com.collabnotes.collabnotes.websocket;
 
-import com.collabnotes.CollabNotes.dto.NoteDTO;
-import com.collabnotes.CollabNotes.dto.UserResponse;
-import com.collabnotes.CollabNotes.metrics.MetricsService;
-import com.collabnotes.CollabNotes.service.NoteService;
-import com.collabnotes.CollabNotes.service.NoteSessionService;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseAuthException;
-import com.google.firebase.auth.FirebaseToken;
+import java.time.Instant;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-import com.collabnotes.CollabNotes.service.UserService;
 
-import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
+import com.collabnotes.collabnotes.dto.NoteDTO;
+import com.collabnotes.collabnotes.dto.UserResponse;
+import com.collabnotes.collabnotes.metrics.MetricsService;
+import com.collabnotes.collabnotes.service.NoteService;
+import com.collabnotes.collabnotes.service.NoteSessionService;
+import com.collabnotes.collabnotes.service.UserService;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
+import com.google.firebase.auth.FirebaseToken;
 
 @Controller
 public class NoteWebSocketController {
 
     private static final Logger logger = LoggerFactory.getLogger(NoteWebSocketController.class);
 
-    @Autowired
-    private NoteService noteService;
+    private final NoteService noteService;
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
 
-    @Autowired
-    private NoteSessionService sessionService;
+    private final NoteSessionService sessionService;
 
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
+    private final SimpMessagingTemplate messagingTemplate;
 
-    @Autowired
-    private MetricsService metricsService;
+    private final MetricsService metricsService;
+
+    public NoteWebSocketController(NoteService noteService, UserService userService,
+            NoteSessionService noteSessionService, SimpMessagingTemplate simpMessagingTemplate,
+            MetricsService metricsService) {
+        this.noteService = noteService;
+        this.userService = userService;
+        this.sessionService = noteSessionService;
+        this.messagingTemplate = simpMessagingTemplate;
+        this.metricsService = metricsService;
+    }
 
     /**
      * Handle full content updates to a note
      */
     @MessageMapping("/notes/{noteId}/update")
-    @org.springframework.messaging.handler.annotation.SendTo("/topic/notes/{noteId}") 
+    @SendTo("/topic/notes/{noteId}")
     public NoteContentUpdateMessage updateNote(@DestinationVariable String noteId,
-                                               NoteContentUpdateMessage message,
-                                               @Header(value = "Authorization", required = false) String token) throws Exception {
+            NoteContentUpdateMessage message,
+            @Header(value = "Authorization", required = false) String token) throws Exception {
         long startTime = System.currentTimeMillis();
-        try{
+        try {
             String firebaseToken = token;
             if (token != null && token.startsWith("Bearer ")) {
                 firebaseToken = token.substring(7);
@@ -76,8 +86,7 @@ public class NoteWebSocketController {
             message.setNoteId(noteId);
 
             return message;
-        }
-        finally {
+        } finally {
             metricsService.recordOperation("websocket.updateNote.time",
                     System.currentTimeMillis() - startTime);
         }
@@ -88,10 +97,10 @@ public class NoteWebSocketController {
      * Handle partial content updates
      */
     @MessageMapping("/notes/{noteId}/partial")
-    @org.springframework.messaging.handler.annotation.SendTo("/topic/notes/{noteId}/partial")
+    @SendTo("/topic/notes/{noteId}/partial")
     public NotePartialUpdateMessage updateNotePartial(@DestinationVariable String noteId,
-                                                      NotePartialUpdateMessage message,
-                                                      @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
+            NotePartialUpdateMessage message,
+            @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
 
         String firebaseToken = token;
         if (token != null && token.startsWith("Bearer ")) {
@@ -117,10 +126,10 @@ public class NoteWebSocketController {
      * Handle cursor position updates
      */
     @MessageMapping("/notes/{noteId}/cursor")
-    @org.springframework.messaging.handler.annotation.SendTo("/topic/notes/{noteId}/cursors")
+    @SendTo("/topic/notes/{noteId}/cursors")
     public CursorPositionMessage updateCursorPosition(@DestinationVariable String noteId,
-                                                      CursorPositionMessage message,
-                                                      @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
+            CursorPositionMessage message,
+            @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
 
         String firebaseToken = token;
         if (token != null && token.startsWith("Bearer ")) {
@@ -146,10 +155,10 @@ public class NoteWebSocketController {
      * Handle user presence updates (joining/leaving a note)
      */
     @MessageMapping("/notes/{noteId}/presence")
-    @org.springframework.messaging.handler.annotation.SendTo("/topic/notes/{noteId}/presence")
+    @SendTo("/topic/notes/{noteId}/presence")
     public UserPresenceMessage updatePresence(@DestinationVariable String noteId,
-                                              UserPresenceMessage message,
-                                              @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
+            UserPresenceMessage message,
+            @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
 
         String firebaseToken = token;
         if (token != null && token.startsWith("Bearer ")) {
@@ -163,7 +172,8 @@ public class NoteWebSocketController {
 
         FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(firebaseToken);
         String userId = decodedToken.getUid();
-        logger.debug("User {} is updating presence in note {}: {}", userId, noteId, message.isJoining() ? "joining" : "leaving");
+        logger.debug("User {} is updating presence in note {}: {}", userId, noteId,
+                message.isJoining() ? "joining" : "leaving");
 
         message.setUserId(userId);
         message.setNoteId(noteId);
@@ -183,10 +193,10 @@ public class NoteWebSocketController {
      * Handle typing indicator updates
      */
     @MessageMapping("/notes/{noteId}/typing")
-    @org.springframework.messaging.handler.annotation.SendTo("/topic/notes/{noteId}/typing")
+    @SendTo("/topic/notes/{noteId}/typing")
     public TypingIndicatorMessage updateTypingStatus(@DestinationVariable String noteId,
-                                                     TypingIndicatorMessage message,
-                                                     @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
+            TypingIndicatorMessage message,
+            @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
 
         String firebaseToken = token;
         if (token != null && token.startsWith("Bearer ")) {
@@ -212,10 +222,11 @@ public class NoteWebSocketController {
      * Handle comments on notes
      */
     @MessageMapping("/notes/{noteId}/comment")
-    @org.springframework.messaging.handler.annotation.SendTo("/topic/notes/{noteId}/comments")
+    @SendTo("/topic/notes/{noteId}/comments")
     public CommentMessage handleComment(@DestinationVariable String noteId,
-                                        CommentMessage message,
-                                        @Header(value = "Authorization", required = false) String token) throws ExecutionException, InterruptedException, FirebaseAuthException {
+            CommentMessage message,
+            @Header(value = "Authorization", required = false) String token)
+            throws ExecutionException, InterruptedException, FirebaseAuthException {
 
         String firebaseToken = token;
         if (token != null && token.startsWith("Bearer ")) {
@@ -253,7 +264,8 @@ public class NoteWebSocketController {
      */
     @MessageMapping("/notes/{noteId}/state")
     public void requestNoteState(@DestinationVariable String noteId,
-                                 @Header(value = "Authorization", required = false) String token) throws ExecutionException, InterruptedException, FirebaseAuthException {
+            @Header(value = "Authorization", required = false) String token)
+            throws ExecutionException, InterruptedException, FirebaseAuthException {
 
         String firebaseToken = token;
         if (token != null && token.startsWith("Bearer ")) {

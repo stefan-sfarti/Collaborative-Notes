@@ -1,4 +1,4 @@
-package com.collabnotes.CollabNotes.dto;
+package com.collabnotes.collabnotes.dto;
 
 import java.util.Date;
 import java.util.List;
@@ -14,10 +14,11 @@ public class NoteDTO {
     private Date updatedAt;
     private Map<String, Object> analysis;
 
-    public NoteDTO() {}
+    public NoteDTO() {
+    }
 
     public NoteDTO(String id, String title, String content, String ownerId,
-                   List<String> collaboratorIds, Date createdAt, Date updatedAt) {
+            List<String> collaboratorIds, Date createdAt, Date updatedAt) {
         this.id = id;
         this.title = title;
         this.content = content;

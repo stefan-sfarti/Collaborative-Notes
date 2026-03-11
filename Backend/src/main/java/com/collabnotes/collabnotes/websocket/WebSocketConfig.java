@@ -1,4 +1,4 @@
-package com.collabnotes.CollabNotes.websocket;
+package com.collabnotes.collabnotes.websocket;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
