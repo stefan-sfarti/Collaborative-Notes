@@ -3,7 +3,7 @@ package com.collabnotes.collabnotes.websocket.message;
 /**
  * Message for note comments
  */
-class CommentMessage extends BaseWebSocketMessage {
+public class CommentMessage extends BaseWebSocketMessage {
     private String commentId;
     private int startPosition;
     private int endPosition;

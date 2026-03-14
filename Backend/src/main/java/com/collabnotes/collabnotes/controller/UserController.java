@@ -3,6 +3,8 @@ package com.collabnotes.collabnotes.controller;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -10,12 +12,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
 import com.collabnotes.collabnotes.dto.UserEmailRequest;
 import com.collabnotes.collabnotes.dto.UserResponse;
+import com.collabnotes.collabnotes.dto.RegisterRequest;
+import com.collabnotes.collabnotes.dto.LoginRequest;
+import com.collabnotes.collabnotes.dto.AuthResponse;
 import com.collabnotes.collabnotes.service.UserService;
-import com.collabnotes.collabnotes.util.FirebaseAuthUtil;
-
-import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/users")
@@ -24,23 +27,12 @@ public class UserController {
     @Autowired
     private UserService userService;
 
-    @Autowired
-    private FirebaseAuthUtil firebaseAuthUtil;
-
-    /**
-     * Endpoint to look up a user by email and return their ID
-     * 
-     * @param request      The HTTP request with the auth token
-     * @param emailRequest Request body containing the email to look up
-     * @return The user ID if found
-     */
     @PostMapping("/lookup")
     public ResponseEntity<?> lookupUserByEmail(
-            HttpServletRequest request,
+            Authentication authentication,
             @RequestBody UserEmailRequest emailRequest) {
 
-        // Verify the caller is authenticated
-        String userId = firebaseAuthUtil.verifyToken(request);
+        String userId = getUserIdFromAuthentication(authentication);
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized access");
         }
@@ -58,20 +50,12 @@ public class UserController {
         }
     }
 
-    /**
-     * Endpoint to look up a user by ID and return their email
-     * 
-     * @param request The HTTP request with the auth token
-     * @param userId  The ID of the user to look up
-     * @return The user email if found
-     */
     @GetMapping("/lookup/{userId}")
     public ResponseEntity<?> lookupUserById(
-            HttpServletRequest request,
+            Authentication authentication,
             @PathVariable String userId) {
 
-        // Verify the caller is authenticated
-        String callerUserId = firebaseAuthUtil.verifyToken(request);
+        String callerUserId = getUserIdFromAuthentication(authentication);
         if (callerUserId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized access");
         }
@@ -89,15 +73,9 @@ public class UserController {
         }
     }
 
-    /**
-     * Get current user information
-     * 
-     * @param request The HTTP request with the auth token
-     * @return Current user data
-     */
     @GetMapping("/me")
-    public ResponseEntity<?> getCurrentUser(HttpServletRequest request) {
-        String userId = firebaseAuthUtil.verifyToken(request);
+    public ResponseEntity<?> getCurrentUser(Authentication authentication) {
+        String userId = getUserIdFromAuthentication(authentication);
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized access");
         }
@@ -112,6 +90,43 @@ public class UserController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error fetching user information: " + e.getMessage());
+        }
+    }
+
+    private String getUserIdFromAuthentication(Authentication authentication) {
+        if (authentication == null) {
+            return null;
+        }
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            return jwt.getSubject();
+        }
+        return authentication.getName();
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
+        try {
+            AuthResponse response = userService.registerLocalUser(request.getEmail(), request.getPassword(), request.getDisplayName());
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error registering user: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        try {
+            AuthResponse response = userService.loginLocalUser(request.getEmail(), request.getPassword());
+            if (response == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid email or password");
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error logging in: " + e.getMessage());
         }
     }
 }

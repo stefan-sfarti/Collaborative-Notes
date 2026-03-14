@@ -3,7 +3,7 @@ package com.collabnotes.collabnotes.websocket.message;
 /**
  * Message for partial note updates
  */
-class NotePartialUpdateMessage extends BaseWebSocketMessage {
+public class NotePartialUpdateMessage extends BaseWebSocketMessage {
     private int position;
     private int deleteCount;
     private String insertText;

@@ -3,7 +3,7 @@ package com.collabnotes.collabnotes.websocket.message;
 /**
  * Message for cursor position updates
  */
-class CursorPositionMessage extends BaseWebSocketMessage {
+public class CursorPositionMessage extends BaseWebSocketMessage {
     private int cursorPosition;
     private int selectionStart;
     private int selectionEnd;

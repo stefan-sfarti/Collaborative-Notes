@@ -1,0 +1,14 @@
+/node_modules/**
+/dist
+/build
+/public
+/src
+/test
+/docs
+/examples
+/scripts
+/config
+/config.js
+/config.json
+/config.yaml
+/config.yml

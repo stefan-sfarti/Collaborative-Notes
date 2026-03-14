@@ -1,45 +1,8 @@
-// src/contexts/AuthContext.js
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import {
-    getAuth,
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    signOut,
-    onAuthStateChanged,
-    GoogleAuthProvider,
-    signInWithPopup,
-    setPersistence,
-    browserLocalPersistence
-} from 'firebase/auth';
-import { getPerformance } from "firebase/performance";
-
-
-
-const firebaseConfig = {
-    apiKey: "AIzaSyAqollAFdsQanUOl6Ov5IEd49ikm8mKLas",
-    authDomain: "focus-poet-457511-n7.firebaseapp.com",
-    projectId: "focus-poet-457511-n7",
-    storageBucket: "focus-poet-457511-n7.firebasestorage.app",
-    messagingSenderId: "98546797256",
-    appId: "1:98546797256:web:bfb0402e25171cdb2933fd",
-    measurementId: "G-2BMVQZCGSH"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-const perf = getPerformance(app);
-
-// Set persistence to LOCAL to keep the user signed in
-setPersistence(auth, browserLocalPersistence);
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import keycloak from '../keycloak';
+import { api, API_URL } from '../services/NoteService';
 
 const AuthContext = createContext();
-
-// Token storage keys
-const TOKEN_STORAGE_KEY = 'authToken';
-const TOKEN_EXPIRY_KEY = 'authTokenExpiry';
-const TOKEN_REFRESH_MARGIN = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 export function useAuth() {
     return useContext(AuthContext);
@@ -47,136 +10,241 @@ export function useAuth() {
 
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
+    const [token, setToken] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [token, setToken] = useState(() => {
-        // Initialize token from localStorage if available and not expired
-        const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
-        const expiryTime = localStorage.getItem(TOKEN_EXPIRY_KEY);
+    const [error, setError] = useState(null);
+    const initialized = useRef(false);
 
-        if (storedToken && expiryTime && new Date().getTime() < parseInt(expiryTime)) {
-            return storedToken;
-        }
-
-        return null;
-    });
-
-    // Save token to localStorage with expiry time
-    const saveToken = (newToken) => {
-        setToken(newToken);
-
-        if (newToken) {
-            // Set expiry to 1 hour from now
-            const expiryTime = new Date().getTime() + 60 * 60 * 1000;
-            localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
-            localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+    useEffect(() => {
+        // Attach auth token to axios instance for all API calls
+        if (token) {
+            api.defaults.headers.common.Authorization = `Bearer ${token}`;
         } else {
-            localStorage.removeItem(TOKEN_STORAGE_KEY);
-            localStorage.removeItem(TOKEN_EXPIRY_KEY);
+            delete api.defaults.headers.common.Authorization;
         }
-    };
+    }, [token]);
 
-    // Check if token needs refreshing
-    const isTokenExpiringSoon = () => {
-        const expiryTime = localStorage.getItem(TOKEN_EXPIRY_KEY);
-        if (!expiryTime) return true;
+    useEffect(() => {
+        if (initialized.current) {
+            return;
+        }
+        initialized.current = true;
 
-        const currentTime = new Date().getTime();
-        const timeUntilExpiry = parseInt(expiryTime) - currentTime;
-
-        return timeUntilExpiry < TOKEN_REFRESH_MARGIN;
-    };
-
-    // Get a fresh token (useful for making API calls)
-    const getFreshToken = async () => {
-        if (!currentUser) return null;
-
-        // Only refresh if token is expiring soon or doesn't exist
-        if (isTokenExpiringSoon()) {
+        const initKeycloak = async () => {
             try {
-                console.log('Refreshing token...');
-                const freshToken = await currentUser.getIdToken(true);
-                saveToken(freshToken);
-                return freshToken;
-            } catch (error) {
-                console.error('Error refreshing token:', error);
-                if (error.code === 'auth/user-token-expired') {
-                    // Force user to re-login
-                    await logout();
-                    window.location.href = '/login';
+                const authenticated = await keycloak.init({
+                    onLoad: 'check-sso',
+                    silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html',
+                    pkceMethod: 'S256',
+                    flow: 'standard'
+                });
+
+                if (authenticated) {
+                    setCurrentUser(keycloak.tokenParsed);
+                    setToken(keycloak.token);
                 }
-                return token; // Return existing token as fallback
-            }
-        }
-
-        return token;
-    };
-
-    function signup(email, password) {
-        return createUserWithEmailAndPassword(auth, email, password);
-    }
-
-    function login(email, password) {
-        return signInWithEmailAndPassword(auth, email, password);
-    }
-
-    function loginWithGoogle() {
-        return signInWithPopup(auth, googleProvider);
-    }
-
-    function logout() {
-        saveToken(null);
-        return signOut(auth);
-    }
-
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            setCurrentUser(user);
-            if (user) {
-
-                try {
-                    const newToken = await user.getIdToken();
-                    saveToken(newToken);
-                } catch (error) {
-                    console.error('Error getting token:', error);
-                    saveToken(null);
-                }
-            } else {
-                saveToken(null);
-            }
-            setLoading(false);
-        });
-
-        return unsubscribe;
-    }, []);
-
-    // Create a token refresh mechanism
-    useEffect(() => {
-        if (!currentUser) return;
-
-        // Function to check and refresh token
-        const checkAndRefreshToken = async () => {
-            if (isTokenExpiringSoon()) {
-                await getFreshToken();
+            } catch (err) {
+                console.error('Keycloak initialization failed:', err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
             }
         };
 
-        // Run initially and set up interval
-        checkAndRefreshToken();
+        // First, try to restore a local-auth session
+        const storedToken = localStorage.getItem('authToken');
+        const storedUserJson = localStorage.getItem('authUser');
 
-        // Refresh token every 10 minutes
-        const refreshInterval = setInterval(checkAndRefreshToken, 10 * 60 * 1000);
+        if (storedToken && storedUserJson) {
+            try {
+                const storedUser = JSON.parse(storedUserJson);
+                setToken(storedToken);
+                setCurrentUser(storedUser);
+                setLoading(false);
+                return;
+            } catch {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('authUser');
+            }
+        }
 
-        return () => clearInterval(refreshInterval);
-    }, [currentUser]);
+        // Fallback to Keycloak SSO flow
+        initKeycloak();
+
+        const interval = setInterval(() => {
+            if (keycloak.isTokenExpired()) {
+                keycloak.updateToken(30)
+                    .then((refreshed) => {
+                        if (refreshed) {
+                            setToken(keycloak.token);
+                            setCurrentUser(keycloak.tokenParsed);
+                        }
+                    })
+                    .catch((err) => {
+                        console.error('Token refresh failed:', err);
+                        logout();
+                    });
+            }
+        }, 60000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    const login = async () => {
+        try {
+            await keycloak.login({
+                redirectUri: window.location.origin
+            });
+        } catch (err) {
+            console.error('Login failed:', err);
+            setError(err.message);
+            throw err;
+        }
+    };
+
+    const localLogin = async (email, password) => {
+        try {
+            setError(null);
+            const response = await fetch(`${API_URL}/users/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}));
+                const message = errorBody.message || 'Login failed';
+                throw new Error(message);
+            }
+
+            const data = await response.json();
+            const authToken = data.token || data.accessToken;
+            const user =
+                data.user ||
+                {
+                    email: data.email || email,
+                    id: data.userId || data.id
+                };
+
+            if (!authToken) {
+                throw new Error('Login response did not contain a token');
+            }
+
+            setToken(authToken);
+            setCurrentUser(user);
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('authUser', JSON.stringify(user));
+        } catch (err) {
+            console.error('Local login failed:', err);
+            setError(err.message);
+            throw err;
+        }
+    };
+
+    const localRegister = async (email, password) => {
+        try {
+            setError(null);
+            const response = await fetch(`${API_URL}/users/register`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}));
+                const message = errorBody.message || 'Registration failed';
+                throw new Error(message);
+            }
+
+            const data = await response.json();
+
+            // If backend returns a token on register, treat it like login
+            const authToken = data.token || data.accessToken;
+            const user =
+                data.user ||
+                {
+                    email: data.email || email,
+                    id: data.userId || data.id
+                };
+
+            if (authToken) {
+                setToken(authToken);
+                setCurrentUser(user);
+                localStorage.setItem('authToken', authToken);
+                localStorage.setItem('authUser', JSON.stringify(user));
+            }
+
+            return data;
+        } catch (err) {
+            console.error('Local registration failed:', err);
+            setError(err.message);
+            throw err;
+        }
+    };
+
+    const register = async () => {
+        try {
+            await keycloak.register({
+                redirectUri: window.location.origin
+            });
+        } catch (err) {
+            console.error('Registration failed:', err);
+            setError(err.message);
+            throw err;
+        }
+    };
+
+    const logout = async () => {
+        try {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('authUser');
+            await keycloak.logout({
+                redirectUri: window.location.origin
+            });
+            setCurrentUser(null);
+            setToken(null);
+        } catch (err) {
+            console.error('Logout failed:', err);
+        }
+    };
+
+    const getFreshToken = async () => {
+        try {
+            // For local auth, just return the stored token
+            if (token && (!currentUser || !currentUser.preferred_username)) {
+                return token;
+            }
+
+            if (keycloak.isTokenExpired()) {
+                const refreshed = await keycloak.updateToken(30);
+                if (refreshed) {
+                    setToken(keycloak.token);
+                    return keycloak.token;
+                }
+            }
+            return keycloak.token;
+        } catch (err) {
+            console.error('Failed to get fresh token:', err);
+            await logout();
+            return null;
+        }
+    };
 
     const value = {
         currentUser,
         token,
-        signup,
         login,
-        loginWithGoogle,
+        localLogin,
+        register,
+        localRegister,
         logout,
-        getFreshToken
+        getFreshToken,
+        error,
+        isAuthenticated: !!token
     };
 
     return (

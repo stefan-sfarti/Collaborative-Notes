@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,9 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.collabnotes.collabnotes.dto.NoteDTO;
 import com.collabnotes.collabnotes.service.NoteService;
-import com.collabnotes.collabnotes.util.FirebaseAuthUtil;
-
-import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/notes")
@@ -27,13 +26,10 @@ public class NoteController {
     @Autowired
     private NoteService noteService;
 
-    @Autowired
-    private FirebaseAuthUtil firebaseAuthUtil;
-
     @PostMapping
-    public ResponseEntity<?> createNote(@RequestBody NoteDTO noteDTO, HttpServletRequest request) {
+    public ResponseEntity<?> createNote(@RequestBody NoteDTO noteDTO, Authentication authentication) {
         try {
-            String userId = firebaseAuthUtil.verifyToken(request);
+            String userId = getUserIdFromAuthentication(authentication);
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
             }
@@ -47,9 +43,9 @@ public class NoteController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getNoteById(@PathVariable String id, HttpServletRequest request) {
+    public ResponseEntity<?> getNoteById(@PathVariable String id, Authentication authentication) {
         try {
-            String userId = firebaseAuthUtil.verifyToken(request);
+            String userId = getUserIdFromAuthentication(authentication);
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
             }
@@ -67,9 +63,9 @@ public class NoteController {
     }
 
     @GetMapping
-    public ResponseEntity<?> getAllNotes(HttpServletRequest request) {
+    public ResponseEntity<?> getAllNotes(Authentication authentication) {
         try {
-            String userId = firebaseAuthUtil.verifyToken(request);
+            String userId = getUserIdFromAuthentication(authentication);
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
             }
@@ -86,9 +82,9 @@ public class NoteController {
     public ResponseEntity<?> updateNote(
             @PathVariable String id,
             @RequestBody NoteDTO noteDTO,
-            HttpServletRequest request) {
+            Authentication authentication) {
         try {
-            String userId = firebaseAuthUtil.verifyToken(request);
+            String userId = getUserIdFromAuthentication(authentication);
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
             }
@@ -106,9 +102,9 @@ public class NoteController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteNote(@PathVariable String id, HttpServletRequest request) {
+    public ResponseEntity<?> deleteNote(@PathVariable String id, Authentication authentication) {
         try {
-            String userId = firebaseAuthUtil.verifyToken(request);
+            String userId = getUserIdFromAuthentication(authentication);
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
             }
@@ -129,9 +125,9 @@ public class NoteController {
     public ResponseEntity<?> addCollaborator(
             @PathVariable String id,
             @PathVariable String collaboratorId,
-            HttpServletRequest request) {
+            Authentication authentication) {
         try {
-            String userId = firebaseAuthUtil.verifyToken(request);
+            String userId = getUserIdFromAuthentication(authentication);
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
             }
@@ -152,9 +148,9 @@ public class NoteController {
     public ResponseEntity<?> removeCollaborator(
             @PathVariable String id,
             @PathVariable String collaboratorId,
-            HttpServletRequest request) {
+            Authentication authentication) {
         try {
-            String userId = firebaseAuthUtil.verifyToken(request);
+            String userId = getUserIdFromAuthentication(authentication);
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
             }
@@ -169,5 +165,15 @@ public class NoteController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error removing collaborator: " + e.getMessage());
         }
+    }
+
+    private String getUserIdFromAuthentication(Authentication authentication) {
+        if (authentication == null) {
+            return null;
+        }
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            return jwt.getSubject();
+        }
+        return authentication.getName();
     }
 }

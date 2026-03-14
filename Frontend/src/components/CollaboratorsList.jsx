@@ -1,30 +1,6 @@
 // src/components/CollaboratorsList.jsx
 import React, {useEffect, useState} from 'react';
 import NoteService from '../services/NoteService';
-import {
-    Box,
-    Typography,
-    TextField,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemSecondaryAction,
-    IconButton,
-    Paper,
-    Divider,
-    InputAdornment,
-    CircularProgress,
-    Avatar,
-    ListItemAvatar,
-    Tooltip
-} from '@mui/material';
-import {
-    PersonAdd as PersonAddIcon,
-    Delete as DeleteIcon,
-    Person as PersonIcon,
-    CheckCircle as CheckCircleIcon,
-    Cake as CrownIcon // Using Cake icon as crown
-} from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
 /**
@@ -139,146 +115,124 @@ function CollaboratorsList({ noteId, collaborators = [], onCollaboratorChange, i
     };
 
     return (
-        <Paper elevation={2} sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-                Collaborators
-            </Typography>
+        <div className="card bg-base-100 shadow-sm border border-base-200">
+            <div className="card-body">
+                <h2 className="card-title text-sm font-semibold mb-2">
+                    Collaborators
+                </h2>
 
-            <Divider/>
+                <div className="space-y-2 max-h-52 overflow-auto text-sm">
+                    {owner && ownerEmail && (
+                        <>
+                            <div className="flex items-center gap-2 p-2 rounded-lg border border-primary/40 bg-primary/5">
+                                <div className="avatar placeholder">
+                                    <div className="bg-primary text-primary-content rounded-full w-8">
+                                        <span>{ownerEmail.substring(0, 1).toUpperCase()}</span>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="font-semibold flex items-center gap-1">
+                                        <span className="text-warning">★</span>
+                                        {ownerEmail}
+                                        <span className="badge badge-xs badge-outline ml-1">
+                                            Owner
+                                        </span>
+                                    </span>
+                                </div>
+                            </div>
 
-            <List dense sx={{  maxHeight: 200, overflow: 'auto' }}>
-                {/* Owner display with crown icon */}
-                {owner && ownerEmail && (
-                    <>
-                        <ListItem
-                            sx={{
-                                borderRadius: 1,
-                                border: '1px',
-                                borderColor: 'primary.main'
-                            }}
-                        >
-                            <ListItemAvatar>
-                                <Avatar sx={{ bgcolor: 'primary.dark' }}>
-                                    {ownerEmail.substring(0, 1).toUpperCase()}
-                                </Avatar>
-                            </ListItemAvatar>
-                            <ListItemText
-                                primary={
-                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <CrownIcon sx={{ color: 'gold', mr: 1 }} />
-                                        <Typography component="span" fontWeight="bold">
-                                            {ownerEmail} (Owner)
-                                        </Typography>
-                                    </Box>
-                                }
-                            />
-                        </ListItem>
+                            {collaborators && collaborators.length > 0 && (
+                                <div className="divider my-2" />
+                            )}
+                        </>
+                    )}
 
-                        {(collaborators && collaborators.length > 0) && (
-                            <Divider sx={{ my: 1 }} />
-                        )}
-                    </>
-                )}
+                    {collaborators && collaborators.length > 0 ? (
+                        collaborators.map(collabId => {
+                            if (typeof collabId !== 'string') {
+                                console.warn("Skipping invalid collaborator ID in render:", collabId);
+                                return null;
+                            }
 
-                {/* Collaborators list */}
-                {collaborators && collaborators.length > 0 ? (
-                    collaborators.map(collabId => {
-                        if (typeof collabId !== 'string') {
-                            console.warn("Skipping invalid collaborator ID in render:", collabId);
-                            return null;
-                        }
+                            const userDetails = fetchedUserDetails?.[collabId];
+                            const displayEmail = userDetails?.email || `User ${collabId.substring(0, 6)}...`;
 
-                        const userDetails = fetchedUserDetails?.[collabId];
-                        const displayEmail = userDetails?.email || `User ${collabId.substring(0, 6)}...`;
-
-
-                        return (
-                            <ListItem key={collabId}>
-                                <ListItemAvatar>
-                                    <Avatar sx={{ bgcolor: 'secondary.main' }}>
-                                        {/* Use the first letter of the display email for the avatar */}
-                                        {displayEmail.substring(0, 1).toUpperCase()}
-                                    </Avatar>
-                                </ListItemAvatar>
-                                <ListItemText
-                                    primary={displayEmail}
-                                />
-                                {/* Only show remove button if current user is the owner AND the collaborator is not the owner */}
-                                {isOwner && collabId !== owner && (
-                                    <ListItemSecondaryAction>
-                                        <Tooltip title="Remove collaborator">
-                                            <IconButton
-                                                edge="end"
-                                                aria-label="delete"
-                                                onClick={() => handleRemoveCollaborator(collabId)}
-                                                disabled={loading}
-                                                color="error"
-                                                size="small"
-                                            >
-                                                <DeleteIcon />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </ListItemSecondaryAction>
-                                )}
-                            </ListItem>
-                        );
-                    })
-                ) : (
-                    ownerEmail && (
-                        <Typography variant="body2" color="textSecondary">
-                            No collaborators yet
-                        </Typography>
-                    )
-                )}
-            </List>
-
-            {/* Add Collaborator section - only visible to the owner */}
-            {isOwner && (
-                <>
-                    <Typography variant="h6" gutterBottom sx={{ mt: 2 }}> {/* Added margin top */}
-                        Add Collaborator
-                    </Typography>
-
-                    <Box component="form" onSubmit={handleAddCollaborator}>
-                        <TextField
-                            fullWidth
-                            size="small"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="Enter collaborator's email"
-                            disabled={loading}
-                            error={!!error}
-                            helperText={error || success}
-                            InputProps={{
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton
-                                            type="submit"
-                                            edge="end"
-                                            color="primary"
-                                            disabled={!email.trim() || loading}
+                            return (
+                                <div
+                                    key={collabId}
+                                    className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-base-200/60"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <div className="avatar placeholder">
+                                            <div className="bg-secondary text-secondary-content rounded-full w-8">
+                                                <span>{displayEmail.substring(0, 1).toUpperCase()}</span>
+                                            </div>
+                                        </div>
+                                        <span>{displayEmail}</span>
+                                    </div>
+                                    {isOwner && collabId !== owner && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-ghost btn-xs text-error"
+                                            onClick={() => handleRemoveCollaborator(collabId)}
+                                            disabled={loading}
                                         >
-                                            {loading ?
-                                                <CircularProgress size={20} /> :
-                                                success ?
-                                                    <CheckCircleIcon color="success" /> :
-                                                    <PersonAddIcon />
-                                            }
-                                        </IconButton>
-                                    </InputAdornment>
-                                ),
-                            }}
-                            FormHelperTextProps={{
-                                sx: {
-                                    color: error ? 'error.main' : success ? 'success.main' : 'inherit'
-                                }
-                            }}
-                        />
-                    </Box>
-                </>
-            )}
-        </Paper>
+                                            Remove
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })
+                    ) : (
+                        ownerEmail && (
+                            <p className="text-xs text-base-content/60">
+                                No collaborators yet
+                            </p>
+                        )
+                    )}
+                </div>
+
+                {isOwner && (
+                    <div className="mt-3 pt-3 border-t border-base-200">
+                        <p className="text-xs font-semibold mb-2">
+                            Add collaborator
+                        </p>
+                        <form onSubmit={handleAddCollaborator} className="form-control gap-2">
+                            <div className="join">
+                                <input
+                                    type="email"
+                                    className="input input-bordered input-sm join-item w-full"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="Enter email address"
+                                    disabled={loading}
+                                />
+                                <button
+                                    type="submit"
+                                    className="btn btn-primary btn-sm join-item"
+                                    disabled={!email.trim() || loading}
+                                >
+                                    {loading ? (
+                                        <span className="loading loading-spinner loading-xs" />
+                                    ) : (
+                                        'Add'
+                                    )}
+                                </button>
+                            </div>
+                            {(error || success) && (
+                                <span
+                                    className={`text-xs ${
+                                        error ? 'text-error' : 'text-success'
+                                    }`}
+                                >
+                                    {error || success}
+                                </span>
+                            )}
+                        </form>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 }
 

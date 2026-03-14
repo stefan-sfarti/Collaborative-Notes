@@ -5,7 +5,7 @@ import java.util.Date;
 /**
  * Base class for all WebSocket messages
  */
-abstract class BaseWebSocketMessage {
+public abstract class BaseWebSocketMessage {
     private String messageId;
     private String userId;
     private String noteId;

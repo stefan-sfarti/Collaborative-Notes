@@ -3,7 +3,7 @@ package com.collabnotes.collabnotes.websocket.message;
 /**
  * Message for user presence (joining/leaving)
  */
-class UserPresenceMessage extends BaseWebSocketMessage {
+public class UserPresenceMessage extends BaseWebSocketMessage {
     private boolean isJoining;
     private String userName;
     private String userColor;

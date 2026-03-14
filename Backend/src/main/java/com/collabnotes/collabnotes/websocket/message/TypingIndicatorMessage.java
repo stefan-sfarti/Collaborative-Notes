@@ -3,7 +3,7 @@ package com.collabnotes.collabnotes.websocket.message;
 /**
  * Message for typing indicator
  */
-class TypingIndicatorMessage extends BaseWebSocketMessage {
+public class TypingIndicatorMessage extends BaseWebSocketMessage {
     private boolean isTyping;
 
     public TypingIndicatorMessage() {

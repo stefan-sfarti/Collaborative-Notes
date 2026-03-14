@@ -5,7 +5,7 @@ import java.util.Map;
 /**
  * Message for initial note state synchronization
  */
-class NoteStateMessage extends BaseWebSocketMessage {
+public class NoteStateMessage extends BaseWebSocketMessage {
     private String noteId;
     private String title;
     private String content;

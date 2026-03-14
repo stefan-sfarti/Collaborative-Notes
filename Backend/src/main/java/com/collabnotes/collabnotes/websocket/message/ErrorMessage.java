@@ -3,7 +3,7 @@ package com.collabnotes.collabnotes.websocket.message;
 /**
  * Message for error notifications
  */
-class ErrorMessage extends BaseWebSocketMessage {
+public class ErrorMessage extends BaseWebSocketMessage {
     private String errorCode;
     private String errorMessage;
     private String originalMessageId;

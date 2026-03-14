@@ -41,7 +41,7 @@ export function WebSocketProvider({ children }) {
 
                 // Create a new STOMP client instance
                 const stompClient = new Client({
-                    brokerURL: 'ws://localhost:5000/ws-notes',
+                    brokerURL: `${import.meta.env.VITE_API_URL?.replace('http', 'ws') || 'ws://localhost:5000'}/ws-notes`,
                     connectHeaders: {
                         Authorization: `Bearer ${token}`
                     },
@@ -224,7 +224,7 @@ export function WebSocketProvider({ children }) {
                 headers: { 'Authorization': `Bearer ${token}`, 'content-type': 'application/json' },
                 body: JSON.stringify({
                     joining: true,
-                    userId: currentUser.uid
+                    userId: currentUser.sub
                 })
             });
             console.log(`Presence announcement sent for ${noteId}`);
@@ -265,7 +265,7 @@ export function WebSocketProvider({ children }) {
                 headers: { 'Authorization': `Bearer ${token}`, 'content-type': 'application/json' },
                 body: JSON.stringify({
                     joining: false,
-                    userId: currentUser.uid
+                    userId: currentUser.sub
                 })
             });
             console.log(`Presence leaving announcement sent for ${noteId}`);
@@ -306,7 +306,7 @@ export function WebSocketProvider({ children }) {
                 body: JSON.stringify({
                     title: title,
                     content: content,
-                    userId: currentUser.uid 
+                    userId: currentUser.sub 
                 })
             });
             console.log(`Note update message sent for ${noteId}`);
@@ -329,7 +329,7 @@ export function WebSocketProvider({ children }) {
                 body: JSON.stringify({
                     title: title,
                     content: content,
-                    userId: currentUser.uid 
+                    userId: currentUser.sub 
                 })
             });
             console.log(`Note state update message sent for ${noteId}`);
@@ -353,7 +353,7 @@ export function WebSocketProvider({ children }) {
                 headers: { 'Authorization': `Bearer ${token}`, 'content-type': 'application/json' },
                 body: JSON.stringify({
                     isTyping: isTyping,
-                    userId: currentUser.uid 
+                    userId: currentUser.sub 
                 })
             });
             console.log(`Typing indicator sent for ${noteId}: ${isTyping}`);

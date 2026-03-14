@@ -1,32 +1,16 @@
-// src/services/NoteService.jsx
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-const api = axios.create({
+export const api = axios.create({
     baseURL: API_URL
 });
-
-// Configure request interceptor to add auth token
-api.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem('authToken');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
-);
 
 // Configure response interceptor to handle auth errors
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
-        const originalRequest = error.config;
-
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
+        if (error.response?.status === 401) {
             window.location.href = '/login';
             return Promise.reject(error);
         }
@@ -134,12 +118,12 @@ const NoteService = {
         }
     },
 
-    getUserDetails: async (userId) => {
+    getCurrentUser: async () => {
         try {
-            const response = await api.get(`/users/${userId}`);
+            const response = await api.get('/users/me');
             return response.data;
         } catch (error) {
-            console.error(`Error fetching user details for ${userId}:`, error);
+            console.error('Error fetching current user:', error);
             throw error;
         }
     }
