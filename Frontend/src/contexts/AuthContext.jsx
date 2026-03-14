@@ -105,7 +105,7 @@ export function AuthProvider({ children }) {
     const localLogin = async (email, password) => {
         try {
             setError(null);
-            const response = await fetch(`${API_URL}/users/login`, {
+            const response = await fetch(`${API_URL}/api/users/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

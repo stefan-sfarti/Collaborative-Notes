@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 function Login() {
-    const { login, localLogin, error } = useAuth();
+    const { login, localLogin, error, isAuthenticated } = useAuth();
+    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -14,6 +15,7 @@ function Login() {
         try {
             setSubmitting(true);
             await localLogin(email, password);
+            navigate('/dashboard');
         } catch (err) {
             console.error('Local login error:', err);
         } finally {
@@ -24,10 +26,17 @@ function Login() {
     async function handleKeycloakLogin() {
         try {
             await login();
+            navigate('/dashboard');
         } catch (err) {
             console.error('Login error:', err);
         }
     }
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            navigate('/dashboard');
+        }
+    }, [isAuthenticated, navigate]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-base-200 via-base-100 to-base-200 flex items-center justify-center px-4">

@@ -1,10 +1,11 @@
 // src/pages/Register.jsx
-import React, { useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 function Register() {
-    const { register, localRegister, error } = useAuth();
+    const { register, localRegister, error, isAuthenticated } = useAuth();
+    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -15,6 +16,7 @@ function Register() {
         try {
             setSubmitting(true);
             await localRegister(email, password);
+            navigate('/dashboard');
         } catch (err) {
             console.error('Local registration error:', err);
         } finally {
@@ -25,10 +27,17 @@ function Register() {
     async function handleKeycloakRegister() {
         try {
             await register();
+            navigate('/dashboard');
         } catch (err) {
             console.error('Registration error:', err);
         }
     }
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            navigate('/dashboard');
+        }
+    }, [isAuthenticated, navigate]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-base-200 via-base-100 to-base-200 flex items-center justify-center px-4">

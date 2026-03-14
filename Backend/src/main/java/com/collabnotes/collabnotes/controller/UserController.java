@@ -12,16 +12,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.validation.Valid;
+import com.collabnotes.collabnotes.dto.AuthResponse;
+import com.collabnotes.collabnotes.dto.LoginRequest;
+import com.collabnotes.collabnotes.dto.RegisterRequest;
 import com.collabnotes.collabnotes.dto.UserEmailRequest;
 import com.collabnotes.collabnotes.dto.UserResponse;
-import com.collabnotes.collabnotes.dto.RegisterRequest;
-import com.collabnotes.collabnotes.dto.LoginRequest;
-import com.collabnotes.collabnotes.dto.AuthResponse;
 import com.collabnotes.collabnotes.service.UserService;
 
+import jakarta.validation.Valid;
+
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping({ "/api/users", "/users" })
 public class UserController {
 
     @Autowired
@@ -106,7 +107,8 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
         try {
-            AuthResponse response = userService.registerLocalUser(request.getEmail(), request.getPassword(), request.getDisplayName());
+            AuthResponse response = userService.registerLocalUser(request.getEmail(), request.getPassword(),
+                    request.getDisplayName());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());

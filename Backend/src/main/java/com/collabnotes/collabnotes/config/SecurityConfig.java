@@ -25,6 +25,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoders;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -123,9 +125,27 @@ public class SecurityConfig {
     }
 
     @Bean
+    public BearerTokenResolver bearerTokenResolver() {
+        DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
+
+        return request -> {
+            String path = request.getServletPath();
+            if ("/api/users/register".equals(path)
+                    || "/api/users/login".equals(path)
+                    || "/users/register".equals(path)
+                    || "/users/login".equals(path)) {
+                return null;
+            }
+
+            return delegate.resolve(request);
+        };
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            AuthenticationManagerResolver<HttpServletRequest> tokenAuthenticationManagerResolver) throws Exception {
+            AuthenticationManagerResolver<HttpServletRequest> tokenAuthenticationManagerResolver,
+            BearerTokenResolver bearerTokenResolver) throws Exception {
 
         http
                 .cors(Customizer.withDefaults())
@@ -137,13 +157,16 @@ public class SecurityConfig {
                         .requestMatchers("/ws-notes/**").permitAll()
                         .requestMatchers("/api/users/register").permitAll()
                         .requestMatchers("/api/users/login").permitAll()
+                        .requestMatchers("/users/register").permitAll()
+                        .requestMatchers("/users/login").permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html")
                         .permitAll().anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .authenticationManagerResolver(tokenAuthenticationManagerResolver))
+                        .authenticationManagerResolver(tokenAuthenticationManagerResolver)
+                        .bearerTokenResolver(bearerTokenResolver))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint())
                         .accessDeniedHandler(new BearerTokenAccessDeniedHandler()));
