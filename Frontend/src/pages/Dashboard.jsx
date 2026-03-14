@@ -3,42 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import NoteService from '../services/NoteService';
-import {
-    Box,
-    Typography,
-    Container,
-    Grid,
-    Card,
-    CardContent,
-    CardActions,
-    Button,
-    AppBar,
-    Toolbar,
-    IconButton,
-    CircularProgress,
-    Alert,
-    Menu,
-    MenuItem,
-    Snackbar
-} from '@mui/material';
-import { Add as AddIcon, Delete as DeleteIcon, MoreVert as MoreVertIcon, Refresh as RefreshIcon } from '@mui/icons-material';
-import { styled } from '@mui/material/styles';
-
-const NoteCard = styled(Card)(({ theme }) => ({
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    transition: 'transform 0.2s ease-in-out',
-    '&:hover': {
-        transform: 'translateY(-4px)',
-        boxShadow: theme.shadows[4],
-    },
-    cursor: 'pointer',
-}));
-
-const NoteCardContent = styled(CardContent)({
-    flexGrow: 1,
-});
 
 function Dashboard() {
     const [notes, setNotes] = useState([]);
@@ -48,10 +12,6 @@ function Dashboard() {
     const [apiStatus, setApiStatus] = useState(true); // Track API connectivity
     const { currentUser, logout, token, getFreshToken } = useAuth();
     const navigate = useNavigate();
-    const [anchorEl, setAnchorEl] = useState(null);
-    const open = Boolean(anchorEl);
-    const [snackbarOpen, setSnackbarOpen] = useState(false);
-    const [snackbarMessage, setSnackbarMessage] = useState('');
 
     useEffect(() => {
         const fetchNotes = async () => {
@@ -187,25 +147,8 @@ function Dashboard() {
         }
     };
 
-    const handleMenuClick = (event) => {
-        setAnchorEl(event.currentTarget);
-    };
-
-    const handleClose = () => {
-        setAnchorEl(null);
-    };
-
     const handleCardClick = (noteId) => {
         navigate(`/notes/${noteId}`);
-    };
-
-    const showSnackbar = (message) => {
-        setSnackbarMessage(message);
-        setSnackbarOpen(true);
-    };
-
-    const handleSnackbarClose = () => {
-        setSnackbarOpen(false);
     };
 
     // Check if user is authenticated
@@ -216,128 +159,125 @@ function Dashboard() {
     }, [currentUser, navigate]);
 
     return (
-        <Box sx={{ flexGrow: 1 }}>
-            <AppBar position="static">
-                <Toolbar>
-                    <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+        <div className="min-h-screen flex flex-col bg-base-200">
+            <div className="navbar bg-base-100 shadow-sm">
+                <div className="flex-1">
+                    <span className="btn btn-ghost normal-case text-xl font-semibold">
                         CollabNotes
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <IconButton
-                            color="inherit"
-                            onClick={handleRefresh}
-                            disabled={loading}
-                            sx={{ mr: 1 }}
-                        >
-                            <RefreshIcon />
-                        </IconButton>
-                        <Typography variant="body1" sx={{ mr: 2 }}>
-                            {currentUser?.email}
-                        </Typography>
-                        <IconButton
-                            color="inherit"
-                            aria-controls="menu-appbar"
-                            aria-haspopup="true"
-                            onClick={handleMenuClick}
-                        >
-                            <MoreVertIcon />
-                        </IconButton>
-                        <Menu
-                            id="menu-appbar"
-                            anchorEl={anchorEl}
-                            anchorOrigin={{
-                                vertical: 'bottom',
-                                horizontal: 'right',
-                            }}
-                            keepMounted
-                            transformOrigin={{
-                                vertical: 'top',
-                                horizontal: 'right',
-                            }}
-                            open={open}
-                            onClose={handleClose}
-                        >
-                            <MenuItem onClick={handleLogout}>Logout</MenuItem>
-                        </Menu>
-                    </Box>
-                </Toolbar>
-            </AppBar>
+                    </span>
+                </div>
+                <div className="flex-none gap-3 pr-4">
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <span className="loading loading-spinner loading-xs" />
+                        ) : (
+                            <span className="material-symbols-outlined text-base">refresh</span>
+                        )}
+                        <span className="hidden sm:inline">Refresh</span>
+                    </button>
+                    {currentUser?.email && (
+                        <div className="hidden sm:flex flex-col items-end text-right">
+                            <span className="text-sm font-medium">{currentUser.email}</span>
+                        </div>
+                    )}
+                    <button
+                        className="btn btn-outline btn-sm"
+                        onClick={handleLogout}
+                    >
+                        Logout
+                    </button>
+                </div>
+            </div>
 
-            <Container sx={{ mt: 4, mb: 4 }}>
-                {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+            <main className="flex-1 px-4 py-6 max-w-6xl mx-auto w-full">
+                {error && (
+                    <div className="alert alert-error mb-3">
+                        <span>{error}</span>
+                    </div>
+                )}
                 {!apiStatus && (
-                    <Alert severity="warning" sx={{ mb: 2 }}>
-                        Cannot connect to the API server. Please check if the backend is running
-                    </Alert>
+                    <div className="alert alert-warning mb-3">
+                        <span>
+                            Cannot connect to the API server. Please check if the backend is running.
+                        </span>
+                    </div>
                 )}
 
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={createLoading ? <CircularProgress size={20} color="inherit" /> : <AddIcon />}
+                <div className="flex justify-between items-center mb-4 gap-3">
+                    <h2 className="text-2xl font-semibold text-base-content">
+                        Your Notes
+                    </h2>
+                    <button
+                        className="btn btn-primary"
                         onClick={handleCreateNote}
                         disabled={createLoading || !apiStatus}
                     >
+                        {createLoading && (
+                            <span className="loading loading-spinner loading-xs mr-2" />
+                        )}
                         Create New Note
-                    </Button>
-                </Box>
+                    </button>
+                </div>
 
                 {loading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                        <CircularProgress />
-                    </Box>
+                    <div className="flex justify-center items-center py-16">
+                        <span className="loading loading-spinner loading-lg" />
+                    </div>
                 ) : notes.length === 0 ? (
-                    <Box sx={{ p: 4, textAlign: 'center' }}>
-                        <Typography variant="h6" color="textSecondary">
-                            No notes yet. Create your first note to get started!
-                        </Typography>
-                    </Box>
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <p className="text-lg font-medium text-base-content/80 mb-2">
+                            No notes yet
+                        </p>
+                        <p className="text-sm text-base-content/60 mb-4">
+                            Create your first note to get started.
+                        </p>
+                        <button
+                            className="btn btn-outline btn-primary"
+                            onClick={handleCreateNote}
+                            disabled={createLoading || !apiStatus}
+                        >
+                            Create a note
+                        </button>
+                    </div>
                 ) : (
-                    <Grid container spacing={3}>
+                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                         {notes.map(note => (
-                            <Grid item xs={12} sm={6} md={4} key={note.id}>
-                                <NoteCard onClick={() => handleCardClick(note.id)}>
-                                    <NoteCardContent>
-                                        <Typography variant="h6" component="h3" gutterBottom noWrap>
-                                            {note.title || 'Untitled Note'}
-                                        </Typography>
-                                        <Typography variant="body2" color="textSecondary" sx={{
-                                            display: '-webkit-box',
-                                            WebkitLineClamp: 3,
-                                            WebkitBoxOrient: 'vertical',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis'
-                                        }}>
-                                            {note.content || 'No content'}
-                                        </Typography>
-                                    </NoteCardContent>
-                                    <CardActions sx={{ justifyContent: 'space-between' }}>
-                                        <Typography variant="caption" color="textSecondary">
-                                            {new Date(note.updatedAt).toLocaleDateString()}
-                                        </Typography>
-                                        <IconButton
-                                            size="small"
-                                            color="error"
-                                            onClick={(e) => handleDeleteNote(note.id, e)}
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
-                                    </CardActions>
-                                </NoteCard>
-                            </Grid>
+                            <article
+                                key={note.id}
+                                className="card bg-base-100 shadow-sm hover:shadow-lg transition cursor-pointer border border-base-200"
+                                onClick={() => handleCardClick(note.id)}
+                            >
+                                <div className="card-body">
+                                    <h3 className="card-title text-base-content/90 truncate">
+                                        {note.title || 'Untitled Note'}
+                                    </h3>
+                                    <p className="text-sm text-base-content/70 line-clamp-3">
+                                        {note.content || 'No content'}
+                                    </p>
+                                </div>
+                                <div className="card-actions px-4 pb-3 flex items-center justify-between text-xs text-base-content/60">
+                                    <span>
+                                        {note.updatedAt
+                                            ? new Date(note.updatedAt).toLocaleDateString()
+                                            : ''}
+                                    </span>
+                                    <button
+                                        className="btn btn-ghost btn-xs text-error"
+                                        onClick={(e) => handleDeleteNote(note.id, e)}
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
+                            </article>
                         ))}
-                    </Grid>
+                    </div>
                 )}
-            </Container>
-
-            <Snackbar
-                open={snackbarOpen}
-                autoHideDuration={6000}
-                onClose={handleSnackbarClose}
-                message={snackbarMessage}
-            />
-        </Box>
+            </main>
+        </div>
     );
 }
 

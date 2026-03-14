@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import com.collabnotes.collabnotes.websocket.message.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -23,9 +24,7 @@ import com.collabnotes.collabnotes.metrics.MetricsService;
 import com.collabnotes.collabnotes.service.NoteService;
 import com.collabnotes.collabnotes.service.NoteSessionService;
 import com.collabnotes.collabnotes.service.UserService;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseAuthException;
-import com.google.firebase.auth.FirebaseToken;
+import com.collabnotes.collabnotes.util.JwtUtil;
 
 @Controller
 public class NoteWebSocketController {
@@ -33,28 +32,23 @@ public class NoteWebSocketController {
     private static final Logger logger = LoggerFactory.getLogger(NoteWebSocketController.class);
 
     private final NoteService noteService;
-
     private final UserService userService;
-
     private final NoteSessionService sessionService;
-
     private final SimpMessagingTemplate messagingTemplate;
-
     private final MetricsService metricsService;
+    private final JwtUtil jwtUtil;
 
     public NoteWebSocketController(NoteService noteService, UserService userService,
             NoteSessionService noteSessionService, SimpMessagingTemplate simpMessagingTemplate,
-            MetricsService metricsService) {
+            MetricsService metricsService, JwtUtil jwtUtil) {
         this.noteService = noteService;
         this.userService = userService;
         this.sessionService = noteSessionService;
         this.messagingTemplate = simpMessagingTemplate;
         this.metricsService = metricsService;
+        this.jwtUtil = jwtUtil;
     }
 
-    /**
-     * Handle full content updates to a note
-     */
     @MessageMapping("/notes/{noteId}/update")
     @SendTo("/topic/notes/{noteId}")
     public NoteContentUpdateMessage updateNote(@DestinationVariable String noteId,
@@ -62,17 +56,12 @@ public class NoteWebSocketController {
             @Header(value = "Authorization", required = false) String token) throws Exception {
         long startTime = System.currentTimeMillis();
         try {
-            String firebaseToken = token;
-            if (token != null && token.startsWith("Bearer ")) {
-                firebaseToken = token.substring(7);
-            }
-
-            if (firebaseToken == null || firebaseToken.isEmpty()) {
-                logger.error("Authorization token is missing for note update: {}", noteId);
+            String userId = jwtUtil.extractUserId(token);
+            if (userId == null) {
+                logger.error("Authorization token is missing or invalid for note update: {}", noteId);
                 throw new IllegalArgumentException("Authorization token is required");
             }
-            FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(firebaseToken);
-            String userId = decodedToken.getUid();
+
             logger.debug("User {} is updating note {}", userId, noteId);
 
             NoteDTO noteDTO = new NoteDTO();
@@ -90,30 +79,20 @@ public class NoteWebSocketController {
             metricsService.recordOperation("websocket.updateNote.time",
                     System.currentTimeMillis() - startTime);
         }
-
     }
 
-    /**
-     * Handle partial content updates
-     */
     @MessageMapping("/notes/{noteId}/partial")
     @SendTo("/topic/notes/{noteId}/partial")
     public NotePartialUpdateMessage updateNotePartial(@DestinationVariable String noteId,
             NotePartialUpdateMessage message,
-            @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
+            @Header(value = "Authorization", required = false) String token) {
 
-        String firebaseToken = token;
-        if (token != null && token.startsWith("Bearer ")) {
-            firebaseToken = token.substring(7);
-        }
-
-        if (firebaseToken == null || firebaseToken.isEmpty()) {
-            logger.error("Authorization token is missing for partial update: {}", noteId);
+        String userId = jwtUtil.extractUserId(token);
+        if (userId == null) {
+            logger.error("Authorization token is missing or invalid for partial update: {}", noteId);
             throw new IllegalArgumentException("Authorization token is required");
         }
 
-        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(firebaseToken);
-        String userId = decodedToken.getUid();
         logger.debug("User {} is making partial update to note {}", userId, noteId);
 
         message.setUserId(userId);
@@ -122,27 +101,18 @@ public class NoteWebSocketController {
         return message;
     }
 
-    /**
-     * Handle cursor position updates
-     */
     @MessageMapping("/notes/{noteId}/cursor")
     @SendTo("/topic/notes/{noteId}/cursors")
     public CursorPositionMessage updateCursorPosition(@DestinationVariable String noteId,
             CursorPositionMessage message,
-            @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
+            @Header(value = "Authorization", required = false) String token) {
 
-        String firebaseToken = token;
-        if (token != null && token.startsWith("Bearer ")) {
-            firebaseToken = token.substring(7);
-        }
-
-        if (firebaseToken == null || firebaseToken.isEmpty()) {
-            logger.error("Authorization token is missing for cursor update: {}", noteId);
+        String userId = jwtUtil.extractUserId(token);
+        if (userId == null) {
+            logger.error("Authorization token is missing or invalid for cursor update: {}", noteId);
             throw new IllegalArgumentException("Authorization token is required");
         }
 
-        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(firebaseToken);
-        String userId = decodedToken.getUid();
         logger.debug("User {} is updating cursor position in note {}", userId, noteId);
 
         message.setUserId(userId);
@@ -151,27 +121,18 @@ public class NoteWebSocketController {
         return message;
     }
 
-    /**
-     * Handle user presence updates (joining/leaving a note)
-     */
     @MessageMapping("/notes/{noteId}/presence")
     @SendTo("/topic/notes/{noteId}/presence")
     public UserPresenceMessage updatePresence(@DestinationVariable String noteId,
             UserPresenceMessage message,
-            @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
+            @Header(value = "Authorization", required = false) String token) {
 
-        String firebaseToken = token;
-        if (token != null && token.startsWith("Bearer ")) {
-            firebaseToken = token.substring(7);
-        }
-
-        if (firebaseToken == null || firebaseToken.isEmpty()) {
-            logger.error("Authorization token is missing for presence update: {}", noteId);
+        String userId = jwtUtil.extractUserId(token);
+        if (userId == null) {
+            logger.error("Authorization token is missing or invalid for presence update: {}", noteId);
             throw new IllegalArgumentException("Authorization token is required");
         }
 
-        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(firebaseToken);
-        String userId = decodedToken.getUid();
         logger.debug("User {} is updating presence in note {}: {}", userId, noteId,
                 message.isJoining() ? "joining" : "leaving");
 
@@ -181,7 +142,7 @@ public class NoteWebSocketController {
         if (message.isJoining()) {
             sessionService.addUserToNote(noteId, userId);
             UserResponse user = userService.getUserInfo(userId);
-            message.setUserName(user.getEmail());
+            message.setUserName(user != null ? user.getEmail() : "Unknown");
         } else {
             sessionService.removeUserFromNote(noteId, userId);
         }
@@ -189,27 +150,18 @@ public class NoteWebSocketController {
         return message;
     }
 
-    /**
-     * Handle typing indicator updates
-     */
     @MessageMapping("/notes/{noteId}/typing")
     @SendTo("/topic/notes/{noteId}/typing")
     public TypingIndicatorMessage updateTypingStatus(@DestinationVariable String noteId,
             TypingIndicatorMessage message,
-            @Header(value = "Authorization", required = false) String token) throws FirebaseAuthException {
+            @Header(value = "Authorization", required = false) String token) {
 
-        String firebaseToken = token;
-        if (token != null && token.startsWith("Bearer ")) {
-            firebaseToken = token.substring(7);
-        }
-
-        if (firebaseToken == null || firebaseToken.isEmpty()) {
-            logger.error("Authorization token is missing for typing indicator: {}", noteId);
+        String userId = jwtUtil.extractUserId(token);
+        if (userId == null) {
+            logger.error("Authorization token is missing or invalid for typing indicator: {}", noteId);
             throw new IllegalArgumentException("Authorization token is required");
         }
 
-        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(firebaseToken);
-        String userId = decodedToken.getUid();
         logger.debug("User {} is updating typing status in note {}", userId, noteId);
 
         message.setUserId(userId);
@@ -218,28 +170,19 @@ public class NoteWebSocketController {
         return message;
     }
 
-    /**
-     * Handle comments on notes
-     */
     @MessageMapping("/notes/{noteId}/comment")
     @SendTo("/topic/notes/{noteId}/comments")
     public CommentMessage handleComment(@DestinationVariable String noteId,
             CommentMessage message,
             @Header(value = "Authorization", required = false) String token)
-            throws ExecutionException, InterruptedException, FirebaseAuthException {
+            throws ExecutionException, InterruptedException {
 
-        String firebaseToken = token;
-        if (token != null && token.startsWith("Bearer ")) {
-            firebaseToken = token.substring(7);
-        }
-
-        if (firebaseToken == null || firebaseToken.isEmpty()) {
-            logger.error("Authorization token is missing for comment: {}", noteId);
+        String userId = jwtUtil.extractUserId(token);
+        if (userId == null) {
+            logger.error("Authorization token is missing or invalid for comment: {}", noteId);
             throw new IllegalArgumentException("Authorization token is required");
         }
 
-        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(firebaseToken);
-        String userId = decodedToken.getUid();
         logger.debug("User {} is commenting on note {}", userId, noteId);
 
         message.setUserId(userId);
@@ -258,27 +201,16 @@ public class NoteWebSocketController {
         return message;
     }
 
-    /**
-     * Request initial state when joining a note
-     * Sends the full note state to the topic.
-     */
     @MessageMapping("/notes/{noteId}/state")
     public void requestNoteState(@DestinationVariable String noteId,
-            @Header(value = "Authorization", required = false) String token)
-            throws ExecutionException, InterruptedException, FirebaseAuthException {
+            @Header(value = "Authorization", required = false) String token) {
 
-        String firebaseToken = token;
-        if (token != null && token.startsWith("Bearer ")) {
-            firebaseToken = token.substring(7);
-        }
-
-        if (firebaseToken == null || firebaseToken.isEmpty()) {
-            logger.error("Authorization token is missing for state request: {}", noteId);
+        String userId = jwtUtil.extractUserId(token);
+        if (userId == null) {
+            logger.error("Authorization token is missing or invalid for state request: {}", noteId);
             return;
         }
 
-        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(firebaseToken);
-        String userId = decodedToken.getUid();
         logger.debug("User {} is requesting initial state for note {}", userId, noteId);
 
         NoteDTO note = noteService.getNoteById(noteId, userId);
@@ -291,33 +223,29 @@ public class NoteWebSocketController {
             return;
         }
 
-        // Get active users for this note
         Set<String> activeUserIds = sessionService.getUsersViewingNote(noteId);
         logger.info("Active users for note {}: {}", noteId, activeUserIds);
 
-        // Create a map of user details for active users
         Map<String, NoteStateMessage.UserInfo> activeUsers = new HashMap<>();
         for (String activeUserId : activeUserIds) {
             try {
                 UserResponse userResponse = userService.getUserInfo(activeUserId);
                 NoteStateMessage.UserInfo userInfo = new NoteStateMessage.UserInfo();
                 userInfo.setUserId(activeUserId);
-                userInfo.setEmail(userResponse.getEmail());
-                userInfo.setDisplayName(userResponse.getDisplayName());
+                userInfo.setEmail(userResponse != null ? userResponse.getEmail() : null);
+                userInfo.setDisplayName(userResponse != null ? userResponse.getDisplayName() : null);
                 activeUsers.put(activeUserId, userInfo);
             } catch (Exception e) {
                 logger.error("Failed to get user info for {}", activeUserId, e);
             }
         }
 
-        // Create state message with current note content and active users
         NoteStateMessage stateMessage = new NoteStateMessage();
         stateMessage.setNoteId(noteId);
         stateMessage.setTitle(note.getTitle());
         stateMessage.setContent(note.getContent());
         stateMessage.setActiveUsers(activeUsers);
 
-        // Get collaborators (users with access to this note)
         List<String> collaboratorIds = noteService.getNoteCollaborators(noteId, userId);
         Map<String, NoteStateMessage.UserInfo> collaborators = new HashMap<>();
         for (String collabId : collaboratorIds) {
@@ -330,8 +258,8 @@ public class NoteWebSocketController {
                 UserResponse userResponse = userService.getUserInfo(collabId);
                 NoteStateMessage.UserInfo userInfo = new NoteStateMessage.UserInfo();
                 userInfo.setUserId(collabId);
-                userInfo.setEmail(userResponse.getEmail());
-                userInfo.setDisplayName(userResponse.getDisplayName());
+                userInfo.setEmail(userResponse != null ? userResponse.getEmail() : null);
+                userInfo.setDisplayName(userResponse != null ? userResponse.getDisplayName() : null);
                 collaborators.put(collabId, userInfo);
             } catch (Exception e) {
                 logger.error("Failed to get collaborator info for {}", collabId, e);
@@ -339,11 +267,9 @@ public class NoteWebSocketController {
         }
         stateMessage.setCollaborators(collaborators);
 
-        // Send the state message to the topic
         messagingTemplate.convertAndSend("/topic/notes/" + noteId + "/state", stateMessage);
         logger.debug("Sent initial state for note {} to topic /topic/notes/{}/state", noteId, noteId);
 
-        // Add this user to active users if not already there
         if (!sessionService.isUserViewingNote(noteId, userId)) {
             sessionService.addUserToNote(noteId, userId);
 
@@ -352,9 +278,8 @@ public class NoteWebSocketController {
             presenceMessage.setUserId(userId);
             presenceMessage.setNoteId(noteId);
 
-            // Add user details to presence message
             UserResponse user = userService.getUserInfo(userId);
-            presenceMessage.setUserName(user.getEmail());
+            presenceMessage.setUserName(user != null ? user.getEmail() : "Unknown");
             messagingTemplate.convertAndSend("/topic/notes/" + noteId + "/presence", presenceMessage);
         }
     }

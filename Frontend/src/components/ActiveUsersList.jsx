@@ -1,16 +1,4 @@
 import React from 'react';
-import {
-    Box,
-    Typography,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemAvatar,
-    Avatar,
-    Paper,
-    Divider
-} from '@mui/material';
-import { FiberManualRecord as FiberManualRecordIcon } from '@mui/icons-material';
 
 /**
  * Component to display a list of active users in the note editor.
@@ -25,73 +13,63 @@ function ActiveUsersList({ activeUsers = [], currentUser }) {
 
 
     return (
-        <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
-            <Typography variant="h6" gutterBottom>
-                Active Users ({validUsers.length})
-            </Typography>
+        <div className="card bg-base-100 shadow-sm border border-base-200">
+            <div className="card-body py-3">
+                <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-sm font-semibold">
+                        Active Users ({validUsers.length})
+                    </h2>
+                </div>
 
-            <Divider sx={{ mb: 2 }} />
-
-            <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
-                {validUsers.length > 0 ? (
-                    validUsers.map(user => (
-                        <ListItem
-                            key={user.userId}
-                            sx={{
-                                // current user
-                                bgcolor: user.userId === currentUser?.uid ? 'rgba(0, 0, 0, 0.04)' : 'transparent',
-                                borderRadius: 1,
-                                mb: 0.5
-                            }}
-                        >
-                            <ListItemAvatar>
-                                <Avatar sx={{
-                                    bgcolor: user.userId === currentUser?.uid ? 'primary.main' : 'secondary.main'
-                                }}>
-                                    {/* Use the first letter of the display name for the avatar */}
-                                    {user.display?.substring(0, 1).toUpperCase() || 'U'}
-                                </Avatar>
-                            </ListItemAvatar>
-                            <ListItemText
-                                primary={
-                                    <Typography noWrap>
+                <div className="max-h-48 overflow-auto text-sm space-y-1">
+                    {validUsers.length > 0 ? (
+                        validUsers.map(user => (
+                            <div
+                                key={user.userId}
+                                className={`flex items-center gap-2 p-2 rounded-lg ${
+                                    user.userId === currentUser?.uid
+                                        ? 'bg-base-200/80'
+                                        : 'hover:bg-base-200/60'
+                                }`}
+                            >
+                                <div className="avatar placeholder">
+                                    <div
+                                        className={`rounded-full w-8 ${
+                                            user.userId === currentUser?.uid
+                                                ? 'bg-primary text-primary-content'
+                                                : 'bg-secondary text-secondary-content'
+                                        }`}
+                                    >
+                                        <span>{user.display?.substring(0, 1).toUpperCase() || 'U'}</span>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col flex-1 min-w-0">
+                                    <span className="truncate">
                                         {user.userId === currentUser?.uid
                                             ? `${user.display} (You)`
                                             : user.display}
-                                    </Typography>
-                                }
-                                secondary={
-                                    <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <FiberManualRecordIcon
-                                            sx={{ fontSize: 12, color: 'success.main', mr: 0.5 }}
-                                        />
+                                    </span>
+                                    <span className="text-xs text-base-content/60 flex items-center gap-1">
+                                        <span className="w-2 h-2 rounded-full bg-success" />
                                         Online
-                                        {/* Show typing indicator if user is typing */}
                                         {user.isTyping && (
-                                            <Typography
-                                                component="span"
-                                                variant="body2"
-                                                sx={{ ml: 1, fontStyle: 'italic' }}
-                                            >
+                                            <span className="italic ml-1">
                                                 typing...
-                                            </Typography>
+                                            </span>
                                         )}
-                                    </Box>
-                                }
-                            />
-                        </ListItem>
-                    ))
-                ) : (
-                    // if there are no other active users
-                    <ListItem>
-                        <ListItemText
-                            primary="No other active users"
-                            secondary="You're the only one here"
-                        />
-                    </ListItem>
-                )}
-            </List>
-        </Paper>
+                                    </span>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="p-2 text-xs text-base-content/60">
+                            <p>No other active users</p>
+                            <p>You&apos;re the only one here.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
     );
 }
 

@@ -1,64 +1,94 @@
 package com.collabnotes.collabnotes.service;
 
+import com.collabnotes.collabnotes.dto.UserResponse;
+import com.collabnotes.collabnotes.dto.AuthResponse;
+import com.collabnotes.collabnotes.entity.User;
+import com.collabnotes.collabnotes.repository.UserRepository;
+import com.collabnotes.collabnotes.util.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.collabnotes.collabnotes.dto.UserResponse;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseAuthException;
-import com.google.firebase.auth.UserRecord;
+import java.util.UUID;
 
 @Service
 public class UserService {
+
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 
-    @Autowired
-    private FirebaseAuth firebaseAuth;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
-    /**
-     * Look up a user ID by email using Firebase Auth
-     * 
-     * @param email The email to look up
-     * @return User ID if found, null otherwise
-     */
-    @Cacheable(value = "userEmailCache", key = "#email")
-    public String findUserIdByEmail(String email) {
-        try {
-            UserRecord userRecord = firebaseAuth.getUserByEmail(email);
-            return userRecord.getUid();
-        } catch (FirebaseAuthException e) {
-            logger.error("Error finding user by email: {}", e.getMessage());
-            return null;
-        }
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
     }
 
-    /**
-     * Get user information by user ID
-     * 
-     * @param userId The Firebase user ID
-     * @return UserResponse object with user details
-     */
+    @Cacheable(value = "userEmailCache", key = "#email")
+    public String findUserIdByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .map(User::getId)
+                .orElse(null);
+    }
+
     @Cacheable(value = "userCache", key = "#userId")
     public UserResponse getUserInfo(String userId) {
-        try {
-            UserRecord userRecord = firebaseAuth.getUser(userId);
-            return new UserResponse(
-                    userRecord.getUid(),
-                    userRecord.getEmail(),
-                    userRecord.getDisplayName(),
-                    userRecord.getPhotoUrl());
-        } catch (FirebaseAuthException e) {
-            logger.error("Error getting user info: {}", e.getMessage());
-            return null;
-        }
+        return userRepository.findById(userId)
+                .map(user -> new UserResponse(
+                        user.getId(),
+                        user.getEmail(),
+                        user.getDisplayName(),
+                        user.getPhotoUrl()))
+                .orElse(null);
+    }
+
+    public User findById(String userId) {
+        return userRepository.findById(userId).orElse(null);
+    }
+
+    public User findByEmail(String email) {
+        return userRepository.findByEmail(email).orElse(null);
     }
 
     @CacheEvict(value = "userCache", key = "#userId")
     public void refreshUserCache(String userId) {
+        logger.debug("Cache refreshed for user: {}", userId);
+    }
 
+    public AuthResponse registerLocalUser(String email, String password, String displayName) {
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("Email already registered");
+        }
+
+        String userId = UUID.randomUUID().toString();
+        User user = new User(userId, email, displayName != null ? displayName : email);
+        user.setPassword(passwordEncoder.encode(password));
+        user.setAuthType("local");
+        user.setCreatedAt(java.time.LocalDateTime.now());
+
+        userRepository.save(user);
+        logger.info("Registered new local user: {}", userId);
+
+        String token = jwtUtil.generateToken(userId, email);
+        return new AuthResponse(token, userId, email, user.getDisplayName());
+    }
+
+    public AuthResponse loginLocalUser(String email, String password) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null || !"local".equals(user.getAuthType())) {
+            return null;
+        }
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            return null;
+        }
+
+        String token = jwtUtil.generateToken(user.getId(), email);
+        return new AuthResponse(token, user.getId(), email, user.getDisplayName());
     }
 }

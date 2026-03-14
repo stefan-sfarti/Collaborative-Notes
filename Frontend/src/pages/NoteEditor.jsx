@@ -7,92 +7,6 @@ import ActiveUsersList from '../components/ActiveUsersList';
 import CollaboratorsList from '../components/CollaboratorsList';
 import { useWebSocket } from "../services/WebSocketProvider.jsx"; 
 
-import {
-    Box,
-    TextField,
-    CircularProgress,
-    Alert,
-    Chip,
-    AppBar,
-    Toolbar,
-    Typography,
-    IconButton,
-    Snackbar,
-    Paper
-} from '@mui/material';
-import { ArrowBack as ArrowBackIcon, Save as SaveIcon } from '@mui/icons-material';
-import { styled } from '@mui/material/styles';
-
-const ContentArea = styled(Box)(({ theme }) => ({
-    display: 'flex',
-    height: 'calc(100vh - 64px)',
-    [theme.breakpoints.down('md')]: {
-        flexDirection: 'column',
-    },
-}));
-
-const EditorSection = styled(Box)(({ theme }) => ({
-    flexGrow: 1,
-    padding: theme.spacing(3),
-    display: 'flex',
-    flexDirection: 'column',
-    backgroundColor: theme.palette.background.default,
-}));
-
-const SidebarSection = styled(Paper)(({ theme }) => ({
-    width: 300,
-    padding: theme.spacing(2),
-    display: 'flex',
-    flexDirection: 'column',
-    borderLeft: `1px solid ${theme.palette.divider}`,
-    [theme.breakpoints.down('md')]: {
-        width: '100%',
-        height: 'auto',
-        marginTop: theme.spacing(2),
-        borderLeft: 'none',
-        borderTop: `1px solid ${theme.palette.divider}`,
-    },
-}));
-
-const TitleField = styled(TextField)(({ theme }) => ({
-    marginBottom: theme.spacing(2),
-    '& .MuiOutlinedInput-root': {
-        borderRadius: theme.shape.borderRadius,
-        fontSize: '1.2rem',
-        fontWeight: 500,
-    },
-}));
-
-const ContentTextField = styled(TextField)(({ theme }) => ({
-    flexGrow: 1,
-    '& .MuiOutlinedInput-root': {
-        height: '100%',
-        alignItems: 'flex-start',
-        padding: theme.spacing(2),
-    },
-    '& .MuiOutlinedInput-input': {
-        height: '100%',
-        overflow: 'auto',
-        lineHeight: 1.5,
-        fontSize: '1rem',
-        fontFamily: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-    },
-}));
-
-const StatusChip = styled(Chip)(({ theme }) => ({
-    marginLeft: theme.spacing(1),
-    color: 'white',
-    '&.connected': {
-        backgroundColor: theme.palette.success.main,
-    },
-    '&.disconnected': {
-        backgroundColor: theme.palette.warning.main,
-    },
-    '&.saving': {
-        backgroundColor: theme.palette.info.main,
-    },
-}));
-
 function NoteEditor() {
     const { noteId } = useParams();
     const { currentUser } = useAuth();
@@ -540,100 +454,94 @@ function NoteEditor() {
     };
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-            <AppBar position="static">
-                <Toolbar>
-                    <IconButton
-                        color="inherit"
-                        edge="start"
+        <div className="flex flex-col h-screen">
+            <div className="navbar bg-base-100 shadow-sm">
+                <div className="flex-none">
+                    <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
                         onClick={() => navigate('/dashboard')}
-                        sx={{ mr: 2 }}
                         title="Back to Dashboard"
                     >
-                        <ArrowBackIcon />
-                    </IconButton>
-                    <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                        ←
+                    </button>
+                </div>
+                <div className="flex-1">
+                    <span className="font-semibold">
                         {isOwner ? 'Edit Note' : 'View Note'}
-                    </Typography>
+                    </span>
+                </div>
+                <div className="flex-none flex items-center gap-2 pr-3">
+                    <span
+                        className={`badge badge-sm ${
+                            saving
+                                ? 'badge-info'
+                                : isNoteModified
+                                    ? 'badge-warning'
+                                    : connected
+                                        ? 'badge-success'
+                                        : 'badge-ghost'
+                        }`}
+                    >
+                        {getStatusText()}
+                    </span>
                     {isNoteModified && (
-                        <IconButton
-                            color="inherit"
+                        <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
                             onClick={handleForceSave}
-                            sx={{ mr: 1 }}
                             title="Save Note"
                         >
-                            <SaveIcon />
-                        </IconButton>
+                            Save
+                        </button>
                     )}
-                    <StatusChip
-                        label={getStatusText()}
-                        className={getStatusClass()}
-                        size="small"
-                        variant="outlined"
-                    />
-                </Toolbar>
-            </AppBar>
+                </div>
+            </div>
 
             {error && (
-                <Alert
-                    severity="error"
-                    sx={{ m: 2 }}
-                    onClose={() => setError('')}
-                >
-                    {error}
-                </Alert>
+                <div className="alert alert-error m-3" onClick={() => setError('')}>
+                    <span>{error}</span>
+                </div>
             )}
 
-            <Snackbar
-                open={showNotification}
-                autoHideDuration={4000}
-                onClose={handleCloseNotification}
-                message={notification}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            />
+            {showNotification && (
+                <div className="toast toast-center toast-bottom z-50">
+                    <div className="alert alert-info">
+                        <span>{notification}</span>
+                        <button
+                            type="button"
+                            className="btn btn-ghost btn-xs ml-2"
+                            onClick={handleCloseNotification}
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1 }}>
-                    <CircularProgress />
-                </Box>
+                <div className="flex flex-1 items-center justify-center">
+                    <span className="loading loading-spinner loading-lg" />
+                </div>
             ) : (
-                <ContentArea>
-                    <EditorSection>
-                        <TitleField
-                            fullWidth
-                            variant="outlined"
-                            label="Title"
+                <div className="flex flex-1 flex-col md:flex-row h-[calc(100vh-4rem)]">
+                    <section className="flex-1 flex flex-col px-4 py-4 gap-3">
+                        <input
+                            type="text"
+                            className="input input-bordered w-full text-lg font-semibold"
+                            placeholder="Note title"
                             value={localTitle}
                             onChange={(e) => handleChange('title', e.target.value)}
-                            placeholder="Note Title"
-                            InputProps={{
-                                style: {
-                                    fontWeight: 500,
-                                    fontSize: '1.2rem'
-                                }
-                            }}
                         />
-                        <ContentTextField
-                            fullWidth
-                            multiline
-                            variant="outlined"
-                            label="Content"
+                        <textarea
+                            className="textarea textarea-bordered w-full flex-1 resize-none leading-relaxed font-mono"
+                            placeholder="Start typing your note content here..."
                             value={localContent}
                             onChange={(e) => handleChange('content', e.target.value)}
-                            placeholder="Start typing your note content here..."
-                            InputProps={{
-                                sx: {
-                                    alignItems: 'flex-start',
-                                    '& .MuiInputBase-input': {
-                                        verticalAlign: 'top'
-                                    }
-                                }
-                            }}
                         />
-                    </EditorSection>
+                    </section>
 
-                    <SidebarSection elevation={0}>
-                        {/* Pass the prepared active users list to ActiveUsersList */}
+                    <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-base-300 bg-base-100 px-4 py-4 flex flex-col gap-3">
                         <ActiveUsersList
                             activeUsers={activeUsersForList}
                             currentUser={currentUser}
@@ -647,10 +555,10 @@ function NoteEditor() {
                             isOwner={isOwner}
                             fetchedUserDetails={fetchedUserDetails}
                         />
-                    </SidebarSection>
-                </ContentArea>
+                    </aside>
+                </div>
             )}
-        </Box>
+        </div>
     );
 }
 
