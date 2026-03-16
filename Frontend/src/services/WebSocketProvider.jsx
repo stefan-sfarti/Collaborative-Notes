@@ -32,6 +32,11 @@ export function WebSocketProvider({ children }) {
                 // Get a fresh authentication token
                 const token = await getFreshToken();
 
+                if (!token) {
+                    console.warn('No auth token available for WebSocket connection.');
+                    return;
+                }
+
                 // Clean up any existing connection before creating a new one
                 if (stompClientRef.current) {
                     console.log('Existing STOMP client found, deactivating...');
@@ -211,7 +216,7 @@ export function WebSocketProvider({ children }) {
             // Send initial messages after subscribing
 
             console.log(`Requesting initial state for note: ${noteId} to /app/notes/${noteId}/state`);
-            stompClientRef.current.publish({
+                    stompClientRef.current.publish({
                 destination: `/app/notes/${noteId}/state`,
                 headers: { 'Authorization': `Bearer ${token}`, 'content-type': 'application/json' },
                 body: JSON.stringify({ requestType: 'initial-state' }) 
@@ -219,7 +224,7 @@ export function WebSocketProvider({ children }) {
             console.log(`Initial state request sent for ${noteId}`);
 
             // Announce presence in the note
-            stompClientRef.current.publish({
+                    stompClientRef.current.publish({
                 destination: `/app/notes/${noteId}/presence`,
                 headers: { 'Authorization': `Bearer ${token}`, 'content-type': 'application/json' },
                 body: JSON.stringify({
@@ -260,7 +265,7 @@ export function WebSocketProvider({ children }) {
             const token = await getFreshToken();
 
             // Announce leaving the note before unsubscribing from presence
-            stompClientRef.current.publish({
+                    stompClientRef.current.publish({
                 destination: `/app/notes/${noteId}/presence`,
                 headers: { 'Authorization': `Bearer ${token}`, 'content-type': 'application/json' },
                 body: JSON.stringify({
@@ -300,7 +305,7 @@ export function WebSocketProvider({ children }) {
 
         try {
             const token = await getFreshToken();
-            stompClientRef.current.publish({
+                    stompClientRef.current.publish({
                 destination: `/app/notes/${noteId}/update`,
                 headers: { 'Authorization': `Bearer ${token}`, 'content-type': 'application/json' },
                 body: JSON.stringify({

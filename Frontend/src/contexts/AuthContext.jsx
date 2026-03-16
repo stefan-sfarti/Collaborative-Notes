@@ -1,5 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import keycloak from '../keycloak';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { api, API_URL } from '../services/NoteService';
 
 const AuthContext = createContext();
@@ -13,7 +12,6 @@ export function AuthProvider({ children }) {
     const [token, setToken] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const initialized = useRef(false);
 
     useEffect(() => {
         // Attach auth token to axios instance for all API calls
@@ -25,33 +23,7 @@ export function AuthProvider({ children }) {
     }, [token]);
 
     useEffect(() => {
-        if (initialized.current) {
-            return;
-        }
-        initialized.current = true;
-
-        const initKeycloak = async () => {
-            try {
-                const authenticated = await keycloak.init({
-                    onLoad: 'check-sso',
-                    silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html',
-                    pkceMethod: 'S256',
-                    flow: 'standard'
-                });
-
-                if (authenticated) {
-                    setCurrentUser(keycloak.tokenParsed);
-                    setToken(keycloak.token);
-                }
-            } catch (err) {
-                console.error('Keycloak initialization failed:', err);
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        // First, try to restore a local-auth session
+        // Restore local-auth session from storage if present
         const storedToken = localStorage.getItem('authToken');
         const storedUserJson = localStorage.getItem('authUser');
 
@@ -68,41 +40,10 @@ export function AuthProvider({ children }) {
             }
         }
 
-        // Fallback to Keycloak SSO flow
-        initKeycloak();
-
-        const interval = setInterval(() => {
-            if (keycloak.isTokenExpired()) {
-                keycloak.updateToken(30)
-                    .then((refreshed) => {
-                        if (refreshed) {
-                            setToken(keycloak.token);
-                            setCurrentUser(keycloak.tokenParsed);
-                        }
-                    })
-                    .catch((err) => {
-                        console.error('Token refresh failed:', err);
-                        logout();
-                    });
-            }
-        }, 60000);
-
-        return () => clearInterval(interval);
+        setLoading(false);
     }, []);
 
-    const login = async () => {
-        try {
-            await keycloak.login({
-                redirectUri: window.location.origin
-            });
-        } catch (err) {
-            console.error('Login failed:', err);
-            setError(err.message);
-            throw err;
-        }
-    };
-
-    const localLogin = async (email, password) => {
+    const login = async (email, password) => {
         try {
             setError(null);
             const response = await fetch(`${API_URL}/users/login`, {
@@ -143,7 +84,7 @@ export function AuthProvider({ children }) {
         }
     };
 
-    const localRegister = async (email, password) => {
+    const register = async (email, password) => {
         try {
             setError(null);
             const response = await fetch(`${API_URL}/users/register`, {
@@ -186,47 +127,17 @@ export function AuthProvider({ children }) {
         }
     };
 
-    const register = async () => {
-        try {
-            await keycloak.register({
-                redirectUri: window.location.origin
-            });
-        } catch (err) {
-            console.error('Registration failed:', err);
-            setError(err.message);
-            throw err;
-        }
-    };
-
-    const logout = async () => {
-        try {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('authUser');
-            await keycloak.logout({
-                redirectUri: window.location.origin
-            });
-            setCurrentUser(null);
-            setToken(null);
-        } catch (err) {
-            console.error('Logout failed:', err);
-        }
+    const logout = () => {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('authUser');
+        setCurrentUser(null);
+        setToken(null);
     };
 
     const getFreshToken = async () => {
         try {
             // For local auth, just return the stored token
-            if (token && (!currentUser || !currentUser.preferred_username)) {
-                return token;
-            }
-
-            if (keycloak.isTokenExpired()) {
-                const refreshed = await keycloak.updateToken(30);
-                if (refreshed) {
-                    setToken(keycloak.token);
-                    return keycloak.token;
-                }
-            }
-            return keycloak.token;
+            return token;
         } catch (err) {
             console.error('Failed to get fresh token:', err);
             await logout();
@@ -238,9 +149,7 @@ export function AuthProvider({ children }) {
         currentUser,
         token,
         login,
-        localLogin,
         register,
-        localRegister,
         logout,
         getFreshToken,
         error,
