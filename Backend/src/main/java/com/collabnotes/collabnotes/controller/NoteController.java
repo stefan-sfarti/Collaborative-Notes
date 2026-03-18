@@ -22,7 +22,7 @@ import com.collabnotes.collabnotes.exception.UnauthorizedException;
 import com.collabnotes.collabnotes.service.NoteService;
 
 @RestController
-@RequestMapping({"/api/notes", "/notes"})
+@RequestMapping({ "/api/notes", "/notes" })
 public class NoteController {
 
     private static final String UNAUTHORIZED_MSG = "Unauthorized";

@@ -1,12 +1,12 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
-  useCallback,
 } from "react";
-import { api, API_URL } from "../services/NoteService";
 import toast from "react-hot-toast";
+import { api, API_URL } from "../services/NoteService";
 
 const AuthContext = createContext();
 

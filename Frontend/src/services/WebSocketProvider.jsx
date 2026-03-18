@@ -1,4 +1,5 @@
-import React, {
+import { Client } from "@stomp/stompjs";
+import {
   createContext,
   useCallback,
   useContext,
@@ -6,7 +7,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Client } from "@stomp/stompjs";
 import { useAuth } from "../contexts/AuthContext.jsx";
 
 const WebSocketContext = createContext(null);
