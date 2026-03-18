@@ -45,23 +45,23 @@ class UserServiceTest {
     }
 
     @Test
-    void registerLocalUser_whenEmailAlreadyRegistered_throwsException() {
+    void registerUser_whenEmailAlreadyRegistered_throwsException() {
         when(userRepository.findByEmail("taken@example.com"))
                 .thenReturn(Optional.of(new User("u1", "taken@example.com", "Taken")));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> userService.registerLocalUser("taken@example.com", "password", "Name"));
+                () -> userService.registerUser("taken@example.com", "password", "Name"));
 
         assertEquals("Email already registered", ex.getMessage());
     }
 
     @Test
-    void registerLocalUser_whenValid_savesUserAndReturnsAuthResponse() {
+    void registerUser_whenValid_savesUserAndReturnsAuthResponse() {
         when(userRepository.findByEmail("new@example.com")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
         when(jwtUtil.generateToken(any(String.class), eq("new@example.com"))).thenReturn("token-123");
 
-        AuthResponse response = userService.registerLocalUser("new@example.com", "password123", "New User");
+        AuthResponse response = userService.registerUser("new@example.com", "password123", "New User");
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
@@ -71,7 +71,6 @@ class UserServiceTest {
         assertEquals("new@example.com", saved.getEmail());
         assertEquals("New User", saved.getDisplayName());
         assertEquals("encoded-password", saved.getPassword());
-        assertEquals("local", saved.getAuthType());
         assertNotNull(saved.getCreatedAt());
 
         assertEquals("token-123", response.getToken());
@@ -81,63 +80,60 @@ class UserServiceTest {
     }
 
     @Test
-    void registerLocalUser_whenDisplayNameMissing_usesEmailAsDisplayName() {
+    void registerUser_whenDisplayNameMissing_usesEmailAsDisplayName() {
         when(userRepository.findByEmail("new@example.com")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
         when(jwtUtil.generateToken(any(String.class), eq("new@example.com"))).thenReturn("token-123");
 
-        AuthResponse response = userService.registerLocalUser("new@example.com", "password123", null);
+        AuthResponse response = userService.registerUser("new@example.com", "password123", null);
 
         assertEquals("new@example.com", response.getDisplayName());
     }
 
     @Test
-    void loginLocalUser_whenUserMissing_returnsNull() {
+    void loginUser_whenUserMissing_returnsNull() {
         when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
 
-        assertNull(userService.loginLocalUser("missing@example.com", "password"));
+        assertNull(userService.loginUser("missing@example.com", "password"));
     }
 
     @Test
-    void loginLocalUser_whenUserNotLocal_returnsNull() {
+    void loginUser_whenOauthUserPasswordMismatch_returnsNull() {
         User user = new User("u-1", "oauth@example.com", "OAuth User");
-        user.setAuthType("keycloak");
         user.setPassword("ignored");
 
         when(userRepository.findByEmail("oauth@example.com")).thenReturn(Optional.of(user));
 
-        assertNull(userService.loginLocalUser("oauth@example.com", "password"));
+        assertNull(userService.loginUser("oauth@example.com", "password"));
     }
 
     @Test
-    void loginLocalUser_whenPasswordMismatch_returnsNull() {
-        User user = new User("u-1", "local@example.com", "Local User");
-        user.setAuthType("local");
+    void loginUser_whenPasswordMismatch_returnsNull() {
+        User user = new User("u-1", "user@example.com", "User");
         user.setPassword("encoded");
 
-        when(userRepository.findByEmail("local@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "encoded")).thenReturn(false);
 
-        assertNull(userService.loginLocalUser("local@example.com", "wrong"));
+        assertNull(userService.loginUser("user@example.com", "wrong"));
     }
 
     @Test
-    void loginLocalUser_whenValid_returnsAuthResponse() {
-        User user = new User("u-1", "local@example.com", "Local User");
-        user.setAuthType("local");
+    void loginUser_whenValid_returnsAuthResponse() {
+        User user = new User("u-1", "user@example.com", "User");
         user.setPassword("encoded");
 
-        when(userRepository.findByEmail("local@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("correct", "encoded")).thenReturn(true);
-        when(jwtUtil.generateToken("u-1", "local@example.com")).thenReturn("jwt-token");
+        when(jwtUtil.generateToken("u-1", "user@example.com")).thenReturn("jwt-token");
 
-        AuthResponse response = userService.loginLocalUser("local@example.com", "correct");
+        AuthResponse response = userService.loginUser("user@example.com", "correct");
 
         assertNotNull(response);
         assertEquals("jwt-token", response.getToken());
         assertEquals("u-1", response.getUserId());
-        assertEquals("local@example.com", response.getEmail());
-        assertEquals("Local User", response.getDisplayName());
+        assertEquals("user@example.com", response.getEmail());
+        assertEquals("User", response.getDisplayName());
     }
 
     @Test

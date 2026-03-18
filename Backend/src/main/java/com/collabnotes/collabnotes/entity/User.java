@@ -1,11 +1,22 @@
 package com.collabnotes.collabnotes.entity;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
+
 @Entity
+@Getter
+@Setter
 @Table(name = "users")
 public class User {
 
@@ -25,9 +36,6 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    @Column(name = "auth_type", nullable = false)
-    private String authType = "local";
-
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -45,77 +53,5 @@ public class User {
         this.email = email;
         this.displayName = displayName;
         this.createdAt = LocalDateTime.now();
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public void setDisplayName(String displayName) {
-        this.displayName = displayName;
-    }
-
-    public String getPhotoUrl() {
-        return photoUrl;
-    }
-
-    public void setPhotoUrl(String photoUrl) {
-        this.photoUrl = photoUrl;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public String getAuthType() {
-        return authType;
-    }
-
-    public void setAuthType(String authType) {
-        this.authType = authType;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public Set<Collaborator> getCollaborations() {
-        return collaborations;
-    }
-
-    public void setCollaborations(Set<Collaborator> collaborations) {
-        this.collaborations = collaborations;
     }
 }

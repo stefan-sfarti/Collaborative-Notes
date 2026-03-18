@@ -1,7 +1,6 @@
 package com.collabnotes.collabnotes.config;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 import javax.crypto.SecretKey;
 
@@ -54,54 +53,62 @@ public class SecurityConfig {
             @Value("${app.auth.jwt.secret-key:defaultSecretKeyForDevelopmentOnlyMustBeAtLeast256BitsLong}") String secretKey) {
         SecretKey key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
         return NimbusJwtDecoder.withSecretKey(key)
-                .macAlgorithm(MacAlgorithm.HS256)
+                .macAlgorithm(MacAlgorithm.HS384)
                 .build();
     }
 
     @Bean
     public AuthenticationManagerResolver<HttpServletRequest> tokenAuthenticationManagerResolver(
             JwtDecoder localJwtDecoder) {
-        JwtAuthenticationProvider localJwtProvider = new JwtAuthenticationProvider(localJwtDecoder);
+        return new DynamicAuthenticationManagerResolver(localJwtDecoder, issuerUri);
+    }
 
-        return new AuthenticationManagerResolver<>() {
-            private volatile AuthenticationManager keycloakAuthenticationManager;
+    private class DynamicAuthenticationManagerResolver implements AuthenticationManagerResolver<HttpServletRequest> {
+        private final JwtAuthenticationProvider localJwtProvider;
+        private final String issuerUri;
+        private final java.util.concurrent.atomic.AtomicReference<AuthenticationManager> keycloakAuthManagerRef = new java.util.concurrent.atomic.AtomicReference<>();
 
-            @Override
-            public AuthenticationManager resolve(HttpServletRequest request) {
-                return authentication -> {
-                    Object credentials = authentication.getCredentials();
-                    if (credentials == null) {
-                        throw new BadCredentialsException("Unsupported authentication token type");
-                    }
+        public DynamicAuthenticationManagerResolver(JwtDecoder localJwtDecoder, String issuerUri) {
+            this.localJwtProvider = new JwtAuthenticationProvider(localJwtDecoder);
+            this.issuerUri = issuerUri;
+        }
 
-                    String token = credentials.toString();
-
-                    if (isLocalToken(token)) {
-                        return localJwtProvider.authenticate(authentication);
-                    }
-
-                    return getKeycloakAuthenticationManager().authenticate(authentication);
-                };
-            }
-
-            private AuthenticationManager getKeycloakAuthenticationManager() {
-                if (keycloakAuthenticationManager == null) {
-                    synchronized (this) {
-                        if (keycloakAuthenticationManager == null) {
-                            if (issuerUri == null || issuerUri.isBlank()) {
-                                throw new OAuth2AuthenticationException("Keycloak issuer is not configured");
-                            }
-
-                            JwtDecoder keycloakDecoder = JwtDecoders.fromIssuerLocation(issuerUri);
-                            JwtAuthenticationProvider keycloakProvider = new JwtAuthenticationProvider(keycloakDecoder);
-                            keycloakAuthenticationManager = keycloakProvider::authenticate;
-                        }
-                    }
+        @Override
+        public AuthenticationManager resolve(HttpServletRequest request) {
+            return authentication -> {
+                Object credentials = authentication.getCredentials();
+                if (credentials == null) {
+                    throw new BadCredentialsException("Unsupported authentication token type");
                 }
 
-                return keycloakAuthenticationManager;
+                String token = credentials.toString();
+
+                if (isLocalToken(token)) {
+                    return localJwtProvider.authenticate(authentication);
+                }
+
+                return getKeycloakAuthenticationManager().authenticate(authentication);
+            };
+        }
+
+        private AuthenticationManager getKeycloakAuthenticationManager() {
+            AuthenticationManager current = keycloakAuthManagerRef.get();
+            if (current != null) {
+                return current;
             }
-        };
+
+            return keycloakAuthManagerRef.updateAndGet(existing -> {
+                if (existing != null) {
+                    return existing;
+                }
+                if (issuerUri == null || issuerUri.isBlank()) {
+                    throw new OAuth2AuthenticationException("Keycloak issuer is not configured");
+                }
+                JwtDecoder keycloakDecoder = JwtDecoders.fromIssuerLocation(issuerUri);
+                JwtAuthenticationProvider keycloakProvider = new JwtAuthenticationProvider(keycloakDecoder);
+                return keycloakProvider::authenticate;
+            });
+        }
     }
 
     private boolean isLocalToken(String token) {
@@ -111,13 +118,19 @@ public class SecurityConfig {
                 return false;
             }
 
-            String payloadJson = new String(java.util.Base64.getUrlDecoder().decode(tokenParts[1]),
+            String base64 = tokenParts[1];
+            int padding = 4 - (base64.length() % 4);
+            if (padding < 4) {
+                base64 += "=".repeat(padding);
+            }
+
+            String payloadJson = new String(java.util.Base64.getUrlDecoder().decode(base64),
                     StandardCharsets.UTF_8);
-            Map<String, Object> payload = objectMapper.readValue(payloadJson, Map.class);
-            Object issuer = payload.get("iss");
+            com.fasterxml.jackson.databind.JsonNode payload = objectMapper.readTree(payloadJson);
+            com.fasterxml.jackson.databind.JsonNode issuerNode = payload.get("iss");
 
             // Local JWTs generated by this app intentionally have no issuer claim.
-            return issuer == null || issuer.toString().isBlank();
+            return issuerNode == null || issuerNode.asText().isBlank();
         } catch (Exception ex) {
             // Default to OAuth2/Keycloak path for malformed or unknown tokens.
             return false;
@@ -155,10 +168,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/ws-notes/**").permitAll()
-                        .requestMatchers("/api/users/register").permitAll()
-                        .requestMatchers("/api/users/login").permitAll()
-                        .requestMatchers("/users/register").permitAll()
-                        .requestMatchers("/users/login").permitAll()
+                        .requestMatchers(
+                                "/api/users/register",
+                                "/api/users/login",
+                                "/users/register",
+                                "/users/login")
+                        .permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",

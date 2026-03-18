@@ -9,6 +9,8 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.lang.NonNull;
@@ -35,6 +37,7 @@ public class NoteServiceImpl implements NoteService {
     private final SimpMessagingTemplate messagingTemplate;
     private final NoteEventPublisher noteEventPublisher;
     private final NoteServiceImpl self;
+    private final CacheManager cacheManager;
 
     public NoteServiceImpl(
             NoteRepository noteRepository,
@@ -42,12 +45,14 @@ public class NoteServiceImpl implements NoteService {
             CollaboratorRepository collaboratorRepository,
             SimpMessagingTemplate messagingTemplate,
             NoteEventPublisher noteEventPublisher,
+            CacheManager cacheManager,
             @Lazy NoteServiceImpl self) {
         this.noteRepository = noteRepository;
         this.userRepository = userRepository;
         this.collaboratorRepository = collaboratorRepository;
         this.messagingTemplate = messagingTemplate;
         this.noteEventPublisher = noteEventPublisher;
+        this.cacheManager = cacheManager;
         this.self = self;
     }
 
@@ -152,6 +157,18 @@ public class NoteServiceImpl implements NoteService {
 
     @Override
     @Transactional
+    public boolean inviteCollaboratorByEmail(String noteId, String email, String userId) {
+        logger.info("Inviting collaborator {} to note {} by user {}", email, noteId, userId);
+        User collaboratorUser = userRepository.findByEmail(email).orElse(null);
+        if (collaboratorUser == null) {
+            logger.warn("User with email {} not found", email);
+            throw new IllegalArgumentException("User with email " + email + " not found");
+        }
+        return self.addCollaborator(noteId, collaboratorUser.getId(), userId);
+    }
+
+    @Override
+    @Transactional
     public boolean addCollaborator(String noteId, String collaboratorId, String userId) {
         logger.info("Adding collaborator {} to note {} by user {}", collaboratorId, noteId, userId);
 
@@ -189,6 +206,7 @@ public class NoteServiceImpl implements NoteService {
         noteRepository.save(note);
 
         logger.info("Successfully added collaborator {} to note {}", collaboratorId, noteId);
+        evictNoteAccessCacheForUsers(noteId, userId, collaboratorId, note.getOwnerId());
         notifyCollaborators(noteId, userId, "collaborator_added");
         noteEventPublisher.publishNoteUpdate(noteId, userId, "collaborator_added");
 
@@ -218,6 +236,7 @@ public class NoteServiceImpl implements NoteService {
             noteRepository.save(note);
 
             logger.info("Successfully removed collaborator {} from note {}", collaboratorId, noteId);
+            evictNoteAccessCacheForUsers(noteId, userId, collaboratorId, note.getOwnerId());
             notifyCollaborators(noteId, userId, "collaborator_removed");
             noteEventPublisher.publishNoteUpdate(noteId, userId, "collaborator_removed");
 
@@ -256,7 +275,7 @@ public class NoteServiceImpl implements NoteService {
         return collaboratorIds;
     }
 
-    @Cacheable(value = "noteAccessCache", key = "#noteId + '-' + #userId")
+    @Cacheable(value = "noteAccessCache", key = "#p0 + '-' + #p1")
     @Transactional(readOnly = true)
     public boolean hasNoteAccess(String noteId, String userId) {
         Note note = noteRepository.findById(noteId).orElse(null);
@@ -270,6 +289,20 @@ public class NoteServiceImpl implements NoteService {
 
     private boolean isCollaborator(String noteId, String userId) {
         return collaboratorRepository.existsByNoteIdAndUserId(noteId, userId);
+    }
+
+    private void evictNoteAccessCacheForUsers(String noteId, String... userIds) {
+        Cache noteAccessCache = cacheManager.getCache("noteAccessCache");
+        if (noteAccessCache == null || userIds == null) {
+            return;
+        }
+
+        for (String userId : userIds) {
+            if (userId == null || userId.isBlank()) {
+                continue;
+            }
+            noteAccessCache.evict(noteId + "-" + userId);
+        }
     }
 
     private NoteDTO convertToDTO(Note note) {
@@ -295,6 +328,6 @@ public class NoteServiceImpl implements NoteService {
         notification.put("userId", userId);
         notification.put("timestamp", LocalDateTime.now());
 
-        messagingTemplate.convertAndSend("/topic/notes/" + noteId + "/events", notification);
+        messagingTemplate.convertAndSend("/topic/notes/" + noteId + "/events", (Object) notification);
     }
 }

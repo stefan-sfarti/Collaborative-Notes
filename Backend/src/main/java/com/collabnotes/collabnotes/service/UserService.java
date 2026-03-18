@@ -1,18 +1,20 @@
 package com.collabnotes.collabnotes.service;
 
-import com.collabnotes.collabnotes.dto.UserResponse;
-import com.collabnotes.collabnotes.dto.AuthResponse;
-import com.collabnotes.collabnotes.entity.User;
-import com.collabnotes.collabnotes.repository.UserRepository;
-import com.collabnotes.collabnotes.util.JwtUtil;
+import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.lang.NonNull;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
+import com.collabnotes.collabnotes.dto.AuthResponse;
+import com.collabnotes.collabnotes.dto.UserResponse;
+import com.collabnotes.collabnotes.entity.User;
+import com.collabnotes.collabnotes.repository.UserRepository;
+import com.collabnotes.collabnotes.util.JwtUtil;
 
 @Service
 public class UserService {
@@ -29,15 +31,15 @@ public class UserService {
         this.jwtUtil = jwtUtil;
     }
 
-    @Cacheable(value = "userEmailCache", key = "#email")
+    @Cacheable(value = "userEmailCache", key = "#p0")
     public String findUserIdByEmail(String email) {
         return userRepository.findByEmail(email)
                 .map(User::getId)
                 .orElse(null);
     }
 
-    @Cacheable(value = "userCache", key = "#userId")
-    public UserResponse getUserInfo(String userId) {
+    @Cacheable(value = "userCache", key = "#p0")
+    public UserResponse getUserInfo(@NonNull String userId) {
         return userRepository.findById(userId)
                 .map(user -> new UserResponse(
                         user.getId(),
@@ -47,7 +49,7 @@ public class UserService {
                 .orElse(null);
     }
 
-    public User findById(String userId) {
+    public User findById(@NonNull String userId) {
         return userRepository.findById(userId).orElse(null);
     }
 
@@ -55,12 +57,12 @@ public class UserService {
         return userRepository.findByEmail(email).orElse(null);
     }
 
-    @CacheEvict(value = "userCache", key = "#userId")
+    @CacheEvict(value = "userCache", key = "#p0")
     public void refreshUserCache(String userId) {
         logger.debug("Cache refreshed for user: {}", userId);
     }
 
-    public AuthResponse registerLocalUser(String email, String password, String displayName) {
+    public AuthResponse registerUser(String email, String password, String displayName) {
         if (userRepository.findByEmail(email).isPresent()) {
             throw new IllegalArgumentException("Email already registered");
         }
@@ -68,19 +70,18 @@ public class UserService {
         String userId = UUID.randomUUID().toString();
         User user = new User(userId, email, displayName != null ? displayName : email);
         user.setPassword(passwordEncoder.encode(password));
-        user.setAuthType("local");
         user.setCreatedAt(java.time.LocalDateTime.now());
 
         userRepository.save(user);
-        logger.info("Registered new local user: {}", userId);
+        logger.info("Registered new user: {}", userId);
 
         String token = jwtUtil.generateToken(userId, email);
         return new AuthResponse(token, userId, email, user.getDisplayName());
     }
 
-    public AuthResponse loginLocalUser(String email, String password) {
+    public AuthResponse loginUser(String email, String password) {
         User user = userRepository.findByEmail(email).orElse(null);
-        if (user == null || !"local".equals(user.getAuthType())) {
+        if (user == null) {
             return null;
         }
 

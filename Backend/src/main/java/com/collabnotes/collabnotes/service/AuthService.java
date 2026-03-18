@@ -41,10 +41,8 @@ public class AuthService {
 
         return userRepository.findById(userId).orElseGet(() -> {
             User newUser = new User(userId, email, displayName);
-            // External identities do not use local password login, but DB column is NOT
-            // NULL.
+        
             newUser.setPassword(passwordEncoder.encode(userId + "-external-auth"));
-            newUser.setAuthType("keycloak");
             newUser.setCreatedAt(LocalDateTime.now());
             logger.info("Creating new user from JWT: {}", userId);
             return userRepository.save(newUser);

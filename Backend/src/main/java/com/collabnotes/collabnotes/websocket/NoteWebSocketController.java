@@ -8,13 +8,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import com.collabnotes.collabnotes.websocket.message.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
@@ -25,6 +25,14 @@ import com.collabnotes.collabnotes.service.NoteService;
 import com.collabnotes.collabnotes.service.NoteSessionService;
 import com.collabnotes.collabnotes.service.UserService;
 import com.collabnotes.collabnotes.util.JwtUtil;
+import com.collabnotes.collabnotes.websocket.message.CommentMessage;
+import com.collabnotes.collabnotes.websocket.message.CursorPositionMessage;
+import com.collabnotes.collabnotes.websocket.message.ErrorMessage;
+import com.collabnotes.collabnotes.websocket.message.NoteContentUpdateMessage;
+import com.collabnotes.collabnotes.websocket.message.NotePartialUpdateMessage;
+import com.collabnotes.collabnotes.websocket.message.NoteStateMessage;
+import com.collabnotes.collabnotes.websocket.message.TypingIndicatorMessage;
+import com.collabnotes.collabnotes.websocket.message.UserPresenceMessage;
 
 @Controller
 public class NoteWebSocketController {
@@ -49,18 +57,44 @@ public class NoteWebSocketController {
         this.jwtUtil = jwtUtil;
     }
 
+    private void assertHasAccess(String noteId, String userId) {
+        if (!noteService.hasNoteAccess(noteId, userId)) {
+            logger.warn("User {} attempted unauthorized access to note {}", userId, noteId);
+            throw new IllegalArgumentException("Unauthorized to access this note");
+        }
+    }
+
+    private String resolveUserId(String token, SimpMessageHeaderAccessor headerAccessor) {
+        String userId = jwtUtil.extractUserId(token);
+        if (userId != null) {
+            return userId;
+        }
+
+        if (headerAccessor != null && headerAccessor.getSessionAttributes() != null) {
+            Object sessionUserId = headerAccessor.getSessionAttributes().get("userId");
+            if (sessionUserId instanceof String sessionUserIdStr && !sessionUserIdStr.isBlank()) {
+                return sessionUserIdStr;
+            }
+        }
+
+        return null;
+    }
+
     @MessageMapping("/notes/{noteId}/update")
     @SendTo("/topic/notes/{noteId}")
     public NoteContentUpdateMessage updateNote(@DestinationVariable String noteId,
             NoteContentUpdateMessage message,
-            @Header(value = "Authorization", required = false) String token) throws Exception {
+            @Header(value = "Authorization", required = false) String token,
+            SimpMessageHeaderAccessor headerAccessor) throws Exception {
         long startTime = System.currentTimeMillis();
         try {
-            String userId = jwtUtil.extractUserId(token);
+            String userId = resolveUserId(token, headerAccessor);
             if (userId == null) {
                 logger.error("Authorization token is missing or invalid for note update: {}", noteId);
                 throw new IllegalArgumentException("Authorization token is required");
             }
+
+            assertHasAccess(noteId, userId);
 
             logger.debug("User {} is updating note {}", userId, noteId);
 
@@ -68,7 +102,12 @@ public class NoteWebSocketController {
             noteDTO.setId(noteId);
             noteDTO.setContent(message.getContent());
             noteDTO.setTitle(message.getTitle());
-            noteService.updateNote(noteId, noteDTO, userId);
+            NoteDTO updatedNote = noteService.updateNote(noteId, noteDTO, userId);
+            
+            if (updatedNote == null) {
+                logger.error("Failed to update note in DB: noteId={}", noteId);
+                throw new IllegalStateException("Failed to save note contents");
+            }
 
             message.setUserId(userId);
             message.setTimestamp(Date.from(Instant.now()));
@@ -85,13 +124,16 @@ public class NoteWebSocketController {
     @SendTo("/topic/notes/{noteId}/partial")
     public NotePartialUpdateMessage updateNotePartial(@DestinationVariable String noteId,
             NotePartialUpdateMessage message,
-            @Header(value = "Authorization", required = false) String token) {
+            @Header(value = "Authorization", required = false) String token,
+            SimpMessageHeaderAccessor headerAccessor) {
 
-        String userId = jwtUtil.extractUserId(token);
+        String userId = resolveUserId(token, headerAccessor);
         if (userId == null) {
             logger.error("Authorization token is missing or invalid for partial update: {}", noteId);
             throw new IllegalArgumentException("Authorization token is required");
         }
+
+        assertHasAccess(noteId, userId);
 
         logger.debug("User {} is making partial update to note {}", userId, noteId);
 
@@ -105,13 +147,16 @@ public class NoteWebSocketController {
     @SendTo("/topic/notes/{noteId}/cursors")
     public CursorPositionMessage updateCursorPosition(@DestinationVariable String noteId,
             CursorPositionMessage message,
-            @Header(value = "Authorization", required = false) String token) {
+            @Header(value = "Authorization", required = false) String token,
+            SimpMessageHeaderAccessor headerAccessor) {
 
-        String userId = jwtUtil.extractUserId(token);
+        String userId = resolveUserId(token, headerAccessor);
         if (userId == null) {
             logger.error("Authorization token is missing or invalid for cursor update: {}", noteId);
             throw new IllegalArgumentException("Authorization token is required");
         }
+
+        assertHasAccess(noteId, userId);
 
         logger.debug("User {} is updating cursor position in note {}", userId, noteId);
 
@@ -125,13 +170,16 @@ public class NoteWebSocketController {
     @SendTo("/topic/notes/{noteId}/presence")
     public UserPresenceMessage updatePresence(@DestinationVariable String noteId,
             UserPresenceMessage message,
-            @Header(value = "Authorization", required = false) String token) {
+            @Header(value = "Authorization", required = false) String token,
+            SimpMessageHeaderAccessor headerAccessor) {
 
-        String userId = jwtUtil.extractUserId(token);
+        String userId = resolveUserId(token, headerAccessor);
         if (userId == null) {
             logger.error("Authorization token is missing or invalid for presence update: {}", noteId);
             throw new IllegalArgumentException("Authorization token is required");
         }
+
+        assertHasAccess(noteId, userId);
 
         logger.debug("User {} is updating presence in note {}: {}", userId, noteId,
                 message.isJoining() ? "joining" : "leaving");
@@ -154,13 +202,16 @@ public class NoteWebSocketController {
     @SendTo("/topic/notes/{noteId}/typing")
     public TypingIndicatorMessage updateTypingStatus(@DestinationVariable String noteId,
             TypingIndicatorMessage message,
-            @Header(value = "Authorization", required = false) String token) {
+            @Header(value = "Authorization", required = false) String token,
+            SimpMessageHeaderAccessor headerAccessor) {
 
-        String userId = jwtUtil.extractUserId(token);
+        String userId = resolveUserId(token, headerAccessor);
         if (userId == null) {
             logger.error("Authorization token is missing or invalid for typing indicator: {}", noteId);
             throw new IllegalArgumentException("Authorization token is required");
         }
+
+        assertHasAccess(noteId, userId);
 
         logger.debug("User {} is updating typing status in note {}", userId, noteId);
 
@@ -174,14 +225,17 @@ public class NoteWebSocketController {
     @SendTo("/topic/notes/{noteId}/comments")
     public CommentMessage handleComment(@DestinationVariable String noteId,
             CommentMessage message,
-            @Header(value = "Authorization", required = false) String token)
+            @Header(value = "Authorization", required = false) String token,
+            SimpMessageHeaderAccessor headerAccessor)
             throws ExecutionException, InterruptedException {
 
-        String userId = jwtUtil.extractUserId(token);
+        String userId = resolveUserId(token, headerAccessor);
         if (userId == null) {
             logger.error("Authorization token is missing or invalid for comment: {}", noteId);
             throw new IllegalArgumentException("Authorization token is required");
         }
+
+        assertHasAccess(noteId, userId);
 
         logger.debug("User {} is commenting on note {}", userId, noteId);
 
@@ -203,9 +257,10 @@ public class NoteWebSocketController {
 
     @MessageMapping("/notes/{noteId}/state")
     public void requestNoteState(@DestinationVariable String noteId,
-            @Header(value = "Authorization", required = false) String token) {
+            @Header(value = "Authorization", required = false) String token,
+            SimpMessageHeaderAccessor headerAccessor) {
 
-        String userId = jwtUtil.extractUserId(token);
+        String userId = resolveUserId(token, headerAccessor);
         if (userId == null) {
             logger.error("Authorization token is missing or invalid for state request: {}", noteId);
             return;
@@ -221,6 +276,11 @@ public class NoteWebSocketController {
             messagingTemplate.convertAndSendToUser(userId,
                     "/queue/errors", error);
             return;
+        }
+
+        // Ensure requester is registered in-session before building state payload.
+        if (!sessionService.isUserViewingNote(noteId, userId)) {
+            sessionService.addUserToNote(noteId, userId);
         }
 
         Set<String> activeUserIds = sessionService.getUsersViewingNote(noteId);
@@ -246,7 +306,10 @@ public class NoteWebSocketController {
         stateMessage.setContent(note.getContent());
         stateMessage.setActiveUsers(activeUsers);
 
-        List<String> collaboratorIds = noteService.getNoteCollaborators(noteId, userId);
+        List<String> collaboratorIds = new java.util.ArrayList<>(noteService.getNoteCollaborators(noteId, userId));
+        if (!collaboratorIds.contains(note.getOwnerId())) {
+            collaboratorIds.add(note.getOwnerId());
+        }
         Map<String, NoteStateMessage.UserInfo> collaborators = new HashMap<>();
         for (String collabId : collaboratorIds) {
             if (activeUsers.containsKey(collabId)) {
@@ -267,20 +330,18 @@ public class NoteWebSocketController {
         }
         stateMessage.setCollaborators(collaborators);
 
-        messagingTemplate.convertAndSend("/topic/notes/" + noteId + "/state", stateMessage);
-        logger.debug("Sent initial state for note {} to topic /topic/notes/{}/state", noteId, noteId);
+            messagingTemplate.convertAndSendToUser(userId,
+                    "/queue/notes/" + noteId + "/state", stateMessage);
+            logger.debug("Sent initial state for note {} to user queue /user/queue/notes/{}/state for user {}",
+                    noteId, noteId, userId);
 
-        if (!sessionService.isUserViewingNote(noteId, userId)) {
-            sessionService.addUserToNote(noteId, userId);
+        UserPresenceMessage presenceMessage = new UserPresenceMessage();
+        presenceMessage.setJoining(true);
+        presenceMessage.setUserId(userId);
+        presenceMessage.setNoteId(noteId);
 
-            UserPresenceMessage presenceMessage = new UserPresenceMessage();
-            presenceMessage.setJoining(true);
-            presenceMessage.setUserId(userId);
-            presenceMessage.setNoteId(noteId);
-
-            UserResponse user = userService.getUserInfo(userId);
-            presenceMessage.setUserName(user != null ? user.getEmail() : "Unknown");
-            messagingTemplate.convertAndSend("/topic/notes/" + noteId + "/presence", presenceMessage);
-        }
+        UserResponse user = userService.getUserInfo(userId);
+        presenceMessage.setUserName(user != null ? user.getEmail() : "Unknown");
+        messagingTemplate.convertAndSend("/topic/notes/" + noteId + "/presence", presenceMessage);
     }
 }

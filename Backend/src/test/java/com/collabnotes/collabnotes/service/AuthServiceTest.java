@@ -109,7 +109,6 @@ class AuthServiceTest {
         assertEquals("ext@example.com", saved.getEmail());
         assertEquals("Ext User", saved.getDisplayName());
         assertEquals("encoded-password", saved.getPassword());
-        assertEquals("keycloak", saved.getAuthType());
         assertNotNull(saved.getCreatedAt());
 
         assertEquals("external-id", result.getId());

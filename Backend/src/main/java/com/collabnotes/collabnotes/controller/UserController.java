@@ -1,6 +1,5 @@
 package com.collabnotes.collabnotes.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -25,8 +24,11 @@ import jakarta.validation.Valid;
 @RequestMapping({ "/api/users", "/users" })
 public class UserController {
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
 
     @PostMapping("/lookup")
     public ResponseEntity<?> lookupUserByEmail(
@@ -54,7 +56,7 @@ public class UserController {
     @GetMapping("/lookup/{userId}")
     public ResponseEntity<?> lookupUserById(
             Authentication authentication,
-            @PathVariable String userId) {
+            @PathVariable("userId") String userId) {
 
         String callerUserId = getUserIdFromAuthentication(authentication);
         if (callerUserId == null) {
@@ -107,7 +109,7 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
         try {
-            AuthResponse response = userService.registerLocalUser(request.getEmail(), request.getPassword(),
+            AuthResponse response = userService.registerUser(request.getEmail(), request.getPassword(),
                     request.getDisplayName());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
@@ -121,7 +123,7 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
         try {
-            AuthResponse response = userService.loginLocalUser(request.getEmail(), request.getPassword());
+            AuthResponse response = userService.loginUser(request.getEmail(), request.getPassword());
             if (response == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid email or password");
             }

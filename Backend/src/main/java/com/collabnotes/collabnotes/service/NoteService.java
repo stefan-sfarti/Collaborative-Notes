@@ -19,7 +19,11 @@ public interface NoteService {
 
     boolean addCollaborator(String noteId, String collaboratorId, String userId);
 
+    boolean inviteCollaboratorByEmail(String noteId, String email, String userId);
+
     boolean removeCollaborator(String noteId, String collaboratorId, String userId);
 
     List<String> getNoteCollaborators(String noteId, String userId);
+
+    boolean hasNoteAccess(String noteId, String userId);
 }
