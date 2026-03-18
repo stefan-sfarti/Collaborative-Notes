@@ -22,7 +22,7 @@ import com.collabnotes.collabnotes.service.UserService;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping({ "/api/users", "/users" })
+@RequestMapping({ "/api/users" })
 public class UserController {
 
     @Autowired

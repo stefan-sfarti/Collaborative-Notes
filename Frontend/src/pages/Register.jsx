@@ -4,7 +4,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 function Register() {
-    const { register, localRegister, error, isAuthenticated } = useAuth();
+    const { localRegister, error, isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -21,15 +21,6 @@ function Register() {
             console.error('Local registration error:', err);
         } finally {
             setSubmitting(false);
-        }
-    }
-
-    async function handleKeycloakRegister() {
-        try {
-            await register();
-            navigate('/dashboard');
-        } catch (err) {
-            console.error('Registration error:', err);
         }
     }
 
@@ -102,16 +93,6 @@ function Register() {
                                 Sign up
                             </button>
                         </form>
-
-                        <div className="divider text-xs uppercase">or</div>
-
-                        <button
-                            type="button"
-                            className="btn btn-outline btn-block"
-                            onClick={handleKeycloakRegister}
-                        >
-                            Continue with Keycloak
-                        </button>
 
                         <div className="mt-2 text-center text-sm text-base-content/70">
                             Already have an account?{' '}

@@ -3,7 +3,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 function Login() {
-    const { login, localLogin, error, isAuthenticated } = useAuth();
+    const { localLogin, error, isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -20,15 +20,6 @@ function Login() {
             console.error('Local login error:', err);
         } finally {
             setSubmitting(false);
-        }
-    }
-
-    async function handleKeycloakLogin() {
-        try {
-            await login();
-            navigate('/dashboard');
-        } catch (err) {
-            console.error('Login error:', err);
         }
     }
 
@@ -96,16 +87,6 @@ function Login() {
                                 Log in
                             </button>
                         </form>
-
-                        <div className="divider text-xs uppercase">or</div>
-
-                        <button
-                            type="button"
-                            className="btn btn-outline btn-block"
-                            onClick={handleKeycloakLogin}
-                        >
-                            Continue with Keycloak
-                        </button>
 
                         <div className="mt-2 text-center text-sm text-base-content/70">
                             Don&apos;t have an account?{' '}

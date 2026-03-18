@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 
 @Component
@@ -29,7 +30,7 @@ public class JwtUtil {
                 .claim("email", email)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 86400000))
-                .signWith(key)
+                .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 

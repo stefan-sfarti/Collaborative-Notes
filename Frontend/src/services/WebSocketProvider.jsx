@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Client } from '@stomp/stompjs';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
 // Create the context
@@ -17,7 +17,7 @@ export function WebSocketProvider({ children }) {
         if (!currentUser) {
             console.log('No user logged in, skipping WebSocket connection.');
             // Ensure client is deactivated if user logs out while connected
-            if (stompClientRef.current && stompClientRef.current.connected) {
+            if (stompClientRef.current?.connected) {
                 console.log('User logged out, deactivating STOMP client.');
                 stompClientRef.current.deactivate();
                 stompClientRef.current = null;

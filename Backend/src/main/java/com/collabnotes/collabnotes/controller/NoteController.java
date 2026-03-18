@@ -2,7 +2,6 @@ package com.collabnotes.collabnotes.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -23,8 +22,11 @@ import com.collabnotes.collabnotes.service.NoteService;
 @RequestMapping("/api/notes")
 public class NoteController {
 
-    @Autowired
-    private NoteService noteService;
+    private final NoteService noteService;
+
+    public NoteController(NoteService noteService) {
+        this.noteService = noteService;
+    }
 
     @PostMapping
     public ResponseEntity<?> createNote(@RequestBody NoteDTO noteDTO, Authentication authentication) {
