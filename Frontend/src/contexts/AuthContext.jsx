@@ -6,15 +6,22 @@ import {
   useState,
 } from "react";
 import toast from "react-hot-toast";
-import { api, API_URL } from "../services/NoteService";
+import { api } from "../services/NoteService";
+import { createApiError } from "../utils/errorUtils";
 
-const AuthContext = createContext();
+const AuthContext = createContext(undefined);
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+
+  return context;
 }
 
-export function AuthProvider({ children }) {
+export function AuthProvider({ children } = {}) {
   const [currentUser, setCurrentUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -76,21 +83,8 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     try {
       setError(null);
-      const response = await fetch(`${API_URL}/users/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        const message = errorBody.message || "Login failed";
-        throw new Error(message);
-      }
-
-      const data = await response.json();
+      const response = await api.post("/users/login", { email, password });
+      const data = response.data;
       const authToken = data.token || data.accessToken;
       const user = data.user || {
         email: data.email || email,
@@ -107,29 +101,17 @@ export function AuthProvider({ children }) {
       localStorage.setItem("authUser", JSON.stringify(user));
     } catch (err) {
       console.error("Local login failed:", err);
-      setError(err.message);
-      throw err;
+      const message = createApiError(err).message;
+      setError(message);
+      throw new Error(message);
     }
   };
 
   const register = async (email, password) => {
     try {
       setError(null);
-      const response = await fetch(`${API_URL}/users/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        const message = errorBody.message || "Registration failed";
-        throw new Error(message);
-      }
-
-      const data = await response.json();
+      const response = await api.post("/users/register", { email, password });
+      const data = response.data;
 
       // If backend returns a token on register, treat it like login
       const authToken = data.token || data.accessToken;
@@ -148,8 +130,9 @@ export function AuthProvider({ children }) {
       return data;
     } catch (err) {
       console.error("Local registration failed:", err);
-      setError(err.message);
-      throw err;
+      const message = createApiError(err).message;
+      setError(message);
+      throw new Error(message);
     }
   };
 

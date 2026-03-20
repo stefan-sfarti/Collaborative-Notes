@@ -1,4 +1,5 @@
 import axios from "axios";
+import { createApiError } from "../utils/errorUtils";
 
 export const API_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -7,6 +8,11 @@ export const api = axios.create({
   baseURL: API_URL,
 });
 
+const _handleError = (label, error) => {
+  console.error(label, error);
+  throw createApiError(error);
+};
+
 const NoteService = {
   // Note CRUD operations
   createNote: async (noteData) => {
@@ -14,8 +20,7 @@ const NoteService = {
       const response = await api.post("/notes", noteData);
       return response.data;
     } catch (error) {
-      console.error("Error creating note:", error);
-      throw error;
+      _handleError("Error creating note:", error);
     }
   },
 
@@ -24,8 +29,7 @@ const NoteService = {
       const response = await api.get(`/notes/${noteId}`);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching note ${noteId}:`, error);
-      throw error;
+      _handleError(`Error fetching note ${noteId}:`, error);
     }
   },
 
@@ -34,8 +38,7 @@ const NoteService = {
       const response = await api.get("/notes");
       return response.data;
     } catch (error) {
-      console.error("Error fetching notes:", error);
-      throw error;
+      _handleError("Error fetching notes:", error);
     }
   },
 
@@ -44,8 +47,7 @@ const NoteService = {
       const response = await api.put(`/notes/${noteId}`, noteData);
       return response.data;
     } catch (error) {
-      console.error(`Error updating note ${noteId}:`, error);
-      throw error;
+      _handleError(`Error updating note ${noteId}:`, error);
     }
   },
 
@@ -54,8 +56,7 @@ const NoteService = {
       const response = await api.delete(`/notes/${noteId}`);
       return response.data;
     } catch (error) {
-      console.error(`Error deleting note ${noteId}:`, error);
-      throw error;
+      _handleError(`Error deleting note ${noteId}:`, error);
     }
   },
 
@@ -81,8 +82,7 @@ const NoteService = {
       const response = await api.post(`/notes/${noteId}/invite`, { email });
       return response.data;
     } catch (error) {
-      console.error(`Error inviting collaborator to note ${noteId}:`, error);
-      throw error;
+      _handleError(`Error inviting collaborator to note ${noteId}:`, error);
     }
   },
 
@@ -94,8 +94,7 @@ const NoteService = {
       );
       return response.data;
     } catch (error) {
-      console.error(`Error adding collaborator to note ${noteId}:`, error);
-      throw error;
+      _handleError(`Error adding collaborator to note ${noteId}:`, error);
     }
   },
 
@@ -106,8 +105,7 @@ const NoteService = {
       );
       return response.data;
     } catch (error) {
-      console.error(`Error removing collaborator from note ${noteId}:`, error);
-      throw error;
+      _handleError(`Error removing collaborator from note ${noteId}:`, error);
     }
   },
 
@@ -117,8 +115,7 @@ const NoteService = {
       const response = await api.post("/users/lookup", { email });
       return response.data;
     } catch (error) {
-      console.error("Error looking up user by email:", error);
-      throw error;
+      _handleError("Error looking up user by email:", error);
     }
   },
 
@@ -127,8 +124,7 @@ const NoteService = {
       const response = await api.get(`/users/lookup/${userId}`);
       return response.data;
     } catch (error) {
-      console.error("Error looking up user by ID:", error);
-      throw error;
+      _handleError("Error looking up user by ID:", error);
     }
   },
 
@@ -137,8 +133,7 @@ const NoteService = {
       const response = await api.get("/users/me");
       return response.data;
     } catch (error) {
-      console.error("Error fetching current user:", error);
-      throw error;
+      _handleError("Error fetching current user:", error);
     }
   },
 };

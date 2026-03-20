@@ -27,46 +27,58 @@ function ActiveUsersList({ activeUsers = [], currentUser }) {
 
         <div className="max-h-48 overflow-auto text-sm space-y-1">
           {validUsers.length > 0 ? (
-            validUsers.map((user) => (
-              <div
-                key={user.userId}
-                className={`flex items-center gap-2 p-2 rounded-lg ${
-                  user.userId === currentUser?.id
-                    ? "bg-base-200/80"
-                    : "hover:bg-base-200/60"
-                }`}
-              >
-                <div className="avatar placeholder">
-                  <div
-                    className={`rounded-full w-8 ${
-                      user.userId === currentUser?.id
-                        ? "bg-primary text-primary-content"
-                        : "bg-secondary text-secondary-content"
-                    }`}
-                  >
-                    <span>
-                      {String(user.display || "U")
-                        .substring(0, 1)
-                        .toUpperCase()}
+            validUsers.map((user) =>
+              user.display === "Loading..." ? (
+                <div
+                  key={user.userId}
+                  className="flex items-center gap-2 p-2 rounded-lg"
+                >
+                  <div className="avatar placeholder">
+                    <div className="rounded-full w-8 h-8 bg-base-300 animate-pulse" />
+                  </div>
+                  <div className="w-24 h-3 bg-base-300 animate-pulse rounded" />
+                </div>
+              ) : (
+                <div
+                  key={user.userId}
+                  className={`flex items-center gap-2 p-2 rounded-lg ${
+                    user.userId === currentUser?.id
+                      ? "bg-base-200/80"
+                      : "hover:bg-base-200/60"
+                  }`}
+                >
+                  <div className="avatar placeholder">
+                    <div
+                      className={`rounded-full w-8 ${
+                        user.userId === currentUser?.id
+                          ? "bg-primary text-primary-content"
+                          : "bg-secondary text-secondary-content"
+                      }`}
+                    >
+                      <span>
+                        {String(user.display || "U")
+                          .substring(0, 1)
+                          .toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="truncate">
+                      {user.userId === currentUser?.id
+                        ? `${user.display} (You)`
+                        : user.display}
+                    </span>
+                    <span className="text-xs text-base-content/60 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-success" />
+                      Online
+                      {user.isTyping && (
+                        <span className="italic ml-1">typing...</span>
+                      )}
                     </span>
                   </div>
                 </div>
-                <div className="flex flex-col flex-1 min-w-0">
-                  <span className="truncate">
-                    {user.userId === currentUser?.id
-                      ? `${user.display} (You)`
-                      : user.display}
-                  </span>
-                  <span className="text-xs text-base-content/60 flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-success" />
-                    Online
-                    {user.isTyping && (
-                      <span className="italic ml-1">typing...</span>
-                    )}
-                  </span>
-                </div>
-              </div>
-            ))
+              ),
+            )
           ) : (
             <div className="p-2 text-xs text-base-content/60">
               <p>No other active users</p>

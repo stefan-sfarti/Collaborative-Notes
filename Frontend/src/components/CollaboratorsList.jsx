@@ -1,5 +1,6 @@
 // src/components/CollaboratorsList.jsx
 import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import NoteService from "../services/NoteService";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -18,17 +19,21 @@ function CollaboratorsList({
   const { currentUser } = useAuth();
   const [email, setEmail] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerLoading, setOwnerLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+
   useEffect(() => {
     async function fetchOwnerEmail() {
+      setOwnerLoading(true);
       try {
         const response = await NoteService.lookupUserById(owner);
         setOwnerEmail(response.email);
-      } catch (error) {
-        console.error("Error fetching owner email:", error);
+      } catch (err) {
+        console.error("Error fetching owner email:", err);
         setOwnerEmail(`Owner-${String(owner || "").substring(0, 6)}...`);
+      } finally {
+        setOwnerLoading(false);
       }
     }
 
@@ -38,6 +43,7 @@ function CollaboratorsList({
       setOwnerEmail("");
     }
   }, [owner]);
+
   useEffect(() => {
     if (collaborators && collaborators.length > 0) {
       collaborators.forEach((collabId) => {
@@ -51,14 +57,12 @@ function CollaboratorsList({
   const handleAddCollaborator = async (e) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
 
     if (!email.trim()) return;
 
     try {
       setLoading(true);
 
-      // Look up the user by email
       const userData = await NoteService.lookupUserByEmail(email.trim());
 
       if (!userData || !userData.userId) {
@@ -66,42 +70,39 @@ function CollaboratorsList({
         return;
       }
 
-      // Check if it's the current user
       if (userData.userId === currentUser.id) {
         setError("You can't add yourself as a collaborator");
         return;
       }
 
-      // Check if user is already a collaborator by checking the array of IDs
       if (collaborators.includes(userData.userId)) {
         setError("This user is already a collaborator");
         return;
       }
 
-      // Add collaborator via the new backend invite endpoint
       await NoteService.inviteCollaborator(noteId, email.trim());
 
-      setSuccess(`${email} added as collaborator`);
+      toast.success(`${email} added as collaborator`);
       setEmail("");
 
       if (onCollaboratorChange) {
         onCollaboratorChange([...collaborators, userData.userId]);
       }
-    } catch (error) {
-      const errorData = error.response?.data;
+    } catch (err) {
+      const errorData = err.response?.data;
       const errorMessage =
         typeof errorData === "string"
           ? errorData
-          : errorData?.message || "Failed to add collaborator";
+          : err.message || "Failed to add collaborator";
       setError(errorMessage);
-      console.error("Error adding collaborator:", error);
+      console.error("Error adding collaborator:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleRemoveCollaborator = async (collaboratorId) => {
-    if (!isOwner) return; // Only owner can remove
+    if (!isOwner) return;
 
     try {
       setLoading(true);
@@ -115,12 +116,10 @@ function CollaboratorsList({
         onCollaboratorChange(updatedCollaborators);
       }
 
-      setSuccess("Collaborator removed successfully");
-    } catch (error) {
-      setError(
-        error.response?.data?.message || "Failed to remove collaborator",
-      );
-      console.error("Error removing collaborator:", error);
+      toast.success("Collaborator removed successfully");
+    } catch (err) {
+      setError(err.message || "Failed to remove collaborator");
+      console.error("Error removing collaborator:", err);
     } finally {
       setLoading(false);
     }
@@ -132,26 +131,34 @@ function CollaboratorsList({
         <h2 className="card-title text-sm font-semibold mb-2">Collaborators</h2>
 
         <div className="space-y-2 max-h-52 overflow-auto text-sm">
-          {owner && ownerEmail && (
+          {owner && (
             <>
               <div className="flex items-center gap-2 p-2 rounded-lg border border-primary/40 bg-primary/5">
                 <div className="avatar placeholder">
                   <div className="bg-primary text-primary-content rounded-full w-8">
-                    <span>
-                      {String(ownerEmail || "O")
-                        .substring(0, 1)
-                        .toUpperCase()}
-                    </span>
+                    {ownerLoading ? (
+                      <span className="loading loading-spinner loading-xs" />
+                    ) : (
+                      <span>
+                        {String(ownerEmail || "O")
+                          .substring(0, 1)
+                          .toUpperCase()}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-semibold flex items-center gap-1">
-                    <span className="text-warning">★</span>
-                    {ownerEmail}
-                    <span className="badge badge-xs badge-outline ml-1">
-                      Owner
+                  {ownerLoading ? (
+                    <div className="w-32 h-3 bg-base-300 animate-pulse rounded" />
+                  ) : (
+                    <span className="font-semibold flex items-center gap-1">
+                      <span className="text-warning">★</span>
+                      {ownerEmail}
+                      <span className="badge badge-xs badge-outline ml-1">
+                        Owner
+                      </span>
                     </span>
-                  </span>
+                  )}
                 </div>
               </div>
 
@@ -173,8 +180,9 @@ function CollaboratorsList({
 
                 const userDetails = fetchedUserDetails?.[collabId];
                 const displayEmail =
-                  userDetails?.email ||
-                  `User ${String(collabId).substring(0, 6)}...`;
+                  userDetails?.pending === true
+                    ? "Loading..."
+                    : userDetails?.email || "Unknown User";
 
                 return (
                   <div
@@ -185,15 +193,20 @@ function CollaboratorsList({
                       <div className="avatar placeholder">
                         <div className="bg-secondary text-secondary-content rounded-full w-8">
                           <span>
-                            {String(displayEmail || "U")
-                              .substring(0, 1)
-                              .toUpperCase()}
+                            {displayEmail === "Loading..." ||
+                            displayEmail === "Unknown User"
+                              ? "?"
+                              : String(displayEmail).substring(0, 1).toUpperCase()}
                           </span>
                         </div>
                       </div>
-                      <span className="truncate max-w-[12rem] sm:max-w-[14rem]">
-                        {displayEmail}
-                      </span>
+                      {displayEmail === "Loading..." ? (
+                        <div className="w-28 h-3 bg-base-300 animate-pulse rounded" />
+                      ) : (
+                        <span className="truncate flex-1 min-w-0">
+                          {displayEmail}
+                        </span>
+                      )}
                     </div>
                     {isOwner && collabId !== owner && (
                       <button
@@ -243,12 +256,8 @@ function CollaboratorsList({
                   )}
                 </button>
               </div>
-              {(error || success) && (
-                <span
-                  className={`text-xs ${error ? "text-error" : "text-success"}`}
-                >
-                  {error || success}
-                </span>
+              {error && (
+                <span className="text-xs text-error">{error}</span>
               )}
             </form>
           </div>

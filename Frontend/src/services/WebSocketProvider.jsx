@@ -29,8 +29,27 @@ const buildWebSocketUrl = () => {
   }
 };
 
+// Factory: returns a STOMP message handler that dispatches a custom DOM event.
+const createMessageHandler = (eventName) => (message) => {
+  try {
+    const data = JSON.parse(message.body);
+    window.dispatchEvent(new CustomEvent(eventName, { detail: data }));
+  } catch (error) {
+    console.error(`Error processing ${eventName}:`, error);
+  }
+};
+
+// Channels to subscribe when joining a note.
+const SUBSCRIPTION_CHANNELS = [
+  { destination: (noteId) => `/topic/notes/${noteId}`, eventName: "note-update" },
+  { destination: (noteId) => `/topic/notes/${noteId}/presence`, eventName: "user-presence" },
+  { destination: (noteId) => `/topic/notes/${noteId}/typing`, eventName: "typing-indicator" },
+  { destination: (noteId) => `/user/queue/notes/${noteId}/state`, eventName: "note-state" },
+];
+
 export function WebSocketProvider({ children }) {
-  const [connected, setConnected] = useState(false);
+  // "connected" | "reconnecting" | "disconnected"
+  const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const { currentUser, token, getFreshToken } = useAuth();
 
   const stompClientRef = useRef(null);
@@ -65,77 +84,14 @@ export function WebSocketProvider({ children }) {
         }
 
         const authHeaders = { Authorization: `Bearer ${token}` };
-        const subscriptions = [];
 
-        const noteUpdateSub = client.subscribe(
-          `/topic/notes/${noteId}`,
-          (message) => {
-            try {
-              const data = JSON.parse(message.body);
-              window.dispatchEvent(
-                new CustomEvent("note-update", { detail: data }),
-              );
-            } catch (error) {
-              console.error(
-                `Error processing note update for ${noteId}:`,
-                error,
-              );
-            }
-          },
-          authHeaders,
+        const subscriptions = SUBSCRIPTION_CHANNELS.map((channel) =>
+          client.subscribe(
+            channel.destination(noteId),
+            createMessageHandler(channel.eventName),
+            authHeaders,
+          ),
         );
-        subscriptions.push(noteUpdateSub);
-
-        const presenceSub = client.subscribe(
-          `/topic/notes/${noteId}/presence`,
-          (message) => {
-            try {
-              const data = JSON.parse(message.body);
-              window.dispatchEvent(
-                new CustomEvent("user-presence", { detail: data }),
-              );
-            } catch (error) {
-              console.error(`Error processing presence for ${noteId}:`, error);
-            }
-          },
-          authHeaders,
-        );
-        subscriptions.push(presenceSub);
-
-        const typingSub = client.subscribe(
-          `/topic/notes/${noteId}/typing`,
-          (message) => {
-            try {
-              const data = JSON.parse(message.body);
-              window.dispatchEvent(
-                new CustomEvent("typing-indicator", { detail: data }),
-              );
-            } catch (error) {
-              console.error(`Error processing typing for ${noteId}:`, error);
-            }
-          },
-          authHeaders,
-        );
-        subscriptions.push(typingSub);
-
-        const noteStateTopicSub = client.subscribe(
-          `/user/queue/notes/${noteId}/state`,
-          (message) => {
-            try {
-              const data = JSON.parse(message.body);
-              window.dispatchEvent(
-                new CustomEvent("note-state", { detail: data }),
-              );
-            } catch (error) {
-              console.error(
-                `Error processing note state for ${noteId}:`,
-                error,
-              );
-            }
-          },
-          authHeaders,
-        );
-        subscriptions.push(noteStateTopicSub);
 
         subscriptionsMapRef.current.set(noteId, subscriptions);
 
@@ -217,7 +173,7 @@ export function WebSocketProvider({ children }) {
       stompClientRef.current = null;
       subscriptionsMapRef.current.clear();
       desiredSubscriptionsRef.current.clear();
-      setConnected(false);
+      setConnectionStatus("disconnected");
       return;
     }
 
@@ -242,12 +198,12 @@ export function WebSocketProvider({ children }) {
           reconnectDelay: 4000,
           heartbeatIncoming: 4000,
           heartbeatOutgoing: 4000,
-          debug: (msg) => console.log(`STOMP: ${msg}`),
+          debug: () => {},
         });
 
         stompClient.onConnect = () => {
           if (disposed) return;
-          setConnected(true);
+          setConnectionStatus("connected");
 
           desiredSubscriptionsRef.current.forEach((noteId) => {
             subscribeToNote(noteId);
@@ -256,7 +212,7 @@ export function WebSocketProvider({ children }) {
 
         stompClient.onStompError = (frame) => {
           console.error("STOMP error:", frame);
-          setConnected(false);
+          setConnectionStatus("reconnecting");
           window.dispatchEvent(
             new CustomEvent("websocket-error", {
               detail: {
@@ -268,19 +224,19 @@ export function WebSocketProvider({ children }) {
         };
 
         stompClient.onWebSocketClose = () => {
-          setConnected(false);
+          setConnectionStatus("reconnecting");
         };
 
         stompClient.onWebSocketError = (event) => {
           console.error("WebSocket error:", event);
-          setConnected(false);
+          setConnectionStatus("reconnecting");
         };
 
         stompClient.activate();
         stompClientRef.current = stompClient;
       } catch (error) {
         console.error("Failed to connect websocket:", error);
-        setConnected(false);
+        setConnectionStatus("disconnected");
       }
     };
 
@@ -294,7 +250,7 @@ export function WebSocketProvider({ children }) {
       }
       stompClientRef.current = null;
       subscriptionsMapRef.current.clear();
-      setConnected(false);
+      setConnectionStatus("disconnected");
     };
   }, [currentUser?.id, token, subscribeToNote]);
 
@@ -354,7 +310,9 @@ export function WebSocketProvider({ children }) {
   );
 
   const value = {
-    connected,
+    connectionStatus,
+    // Keep legacy `connected` boolean so consumers don't break during transition
+    connected: connectionStatus === "connected",
     subscribeToNote,
     unsubscribeFromNote,
     sendNoteUpdate,

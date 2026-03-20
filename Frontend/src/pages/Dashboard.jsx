@@ -1,35 +1,37 @@
 // src/pages/Dashboard.js
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { useAuth } from "../contexts/AuthContext";
-import NoteService from "../services/NoteService";
+import { useNavigate } from "react-router-dom";
+import ConfirmModal from "../components/ConfirmModal";
 import DashboardNavbar from "../components/DashboardNavbar";
 import NoteCard from "../components/NoteCard";
+import NoteCardSkeleton from "../components/NoteCardSkeleton";
+import OfflineIndicator from "../components/OfflineIndicator";
+import { useAuth } from "../contexts/AuthContext";
+import NoteService from "../services/NoteService";
+import { useWebSocket } from "../services/WebSocketProvider.jsx";
+import { createApiError } from "../utils/errorUtils";
+
 function Dashboard() {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createLoading, setCreateLoading] = useState(false);
   const [error, setError] = useState("");
-  const [apiStatus, setApiStatus] = useState(true); // Track API connectivity
-  const { currentUser, logout, token, getFreshToken } = useAuth();
+  const [noteToDelete, setNoteToDelete] = useState(null);
+  const { currentUser, logout, token } = useAuth();
+  const { connectionStatus } = useWebSocket();
   const navigate = useNavigate();
 
   useEffect(() => {
     const fetchNotes = async () => {
-      if (!apiStatus) return;
-
       try {
-        // Ensure we have a fresh token before fetching
-        await getFreshToken();
         const notesData = await NoteService.getAllNotes();
         setNotes(notesData);
         setError("");
-      } catch (error) {
-        console.error("Error fetching notes:", error);
-        const errorMsg = `Failed to fetch notes: ${error.response?.data?.message || error.message || "Network Error"}`;
+      } catch (err) {
+        const errorMsg = `Failed to fetch notes: ${createApiError(err).message}`;
         setError(errorMsg);
-        if (error.response?.status !== 401) {
+        if (err.status !== 401) {
           toast.error(errorMsg);
         }
       } finally {
@@ -40,14 +42,9 @@ function Dashboard() {
     if (currentUser && token) {
       fetchNotes();
     }
-  }, [currentUser, token, apiStatus]);
+  }, [currentUser, token]);
 
   const handleCreateNote = async () => {
-    if (!apiStatus) {
-      setError("Cannot create note: API server is not available");
-      return;
-    }
-
     try {
       setCreateLoading(true);
       const newNote = {
@@ -55,16 +52,12 @@ function Dashboard() {
         content: "",
         ownerId: currentUser?.id,
       };
-
-      // Ensure fresh token before creating note
-      await getFreshToken();
       const createdNote = await NoteService.createNote(newNote);
       navigate(`/notes/${createdNote.id}`);
-    } catch (error) {
-      console.error("Error creating note:", error);
-      const errorMsg = `Failed to create note: ${error.response?.data?.message || error.message || "Unknown error"}`;
+    } catch (err) {
+      const errorMsg = `Failed to create note: ${createApiError(err).message}`;
       setError(errorMsg);
-      if (error.response?.status !== 401) {
+      if (err.status !== 401) {
         toast.error(errorMsg);
       }
     } finally {
@@ -72,28 +65,22 @@ function Dashboard() {
     }
   };
 
-  const handleDeleteNote = async (noteId, e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDeleteNote = (noteId) => {
+    const note = notes.find((n) => n.id === noteId);
+    setNoteToDelete({ id: noteId, title: note?.title || "this note" });
+  };
 
-    if (!apiStatus) {
-      setError("Cannot delete note: API server is not available");
-      return;
-    }
-
+  const confirmDelete = async () => {
     try {
-      // Ensure fresh token before deleting
-      await getFreshToken();
-      await NoteService.deleteNote(noteId);
-      setNotes(notes.filter((note) => note.id !== noteId));
+      await NoteService.deleteNote(noteToDelete.id);
+      setNotes(notes.filter((note) => note.id !== noteToDelete.id));
       toast.success("Note deleted successfully");
-    } catch (error) {
-      console.error("Error deleting note:", error);
-      const errorMsg = `Failed to delete note: ${error.response?.data?.message || error.message || "Unknown error"}`;
+    } catch (err) {
+      const errorMsg = `Failed to delete note: ${createApiError(err).message}`;
       setError(errorMsg);
-      if (error.response?.status !== 401) {
-        toast.error(errorMsg);
-      }
+      toast.error(errorMsg);
+    } finally {
+      setNoteToDelete(null);
     }
   };
 
@@ -101,28 +88,14 @@ function Dashboard() {
     setLoading(true);
     setError("");
 
-    // First check API connectivity
-    const isConnected = await NoteService.checkApiConnection();
-    setApiStatus(isConnected);
-
-    if (!isConnected) {
-      setError(
-        "Cannot connect to API server. Please check if the backend is running.",
-      );
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Ensure fresh token before fetching
-      await getFreshToken();
       const notesData = await NoteService.getAllNotes();
       setNotes(notesData);
       toast.success("Notes refreshed successfully");
-    } catch (error) {
-      const errorMsg = `Failed to fetch notes: ${error.response?.data?.message || error.message || "Network Error"}`;
+    } catch (err) {
+      const errorMsg = `Failed to fetch notes: ${createApiError(err).message}`;
       setError(errorMsg);
-      if (error.response?.status !== 401) {
+      if (err.status !== 401) {
         toast.error(errorMsg);
       }
     } finally {
@@ -134,8 +107,8 @@ function Dashboard() {
     try {
       await logout();
       navigate("/login");
-    } catch (error) {
-      setError("Failed to log out: " + error.message);
+    } catch (err) {
+      setError("Failed to log out: " + err.message);
     }
   };
 
@@ -143,7 +116,6 @@ function Dashboard() {
     navigate(`/notes/${noteId}`);
   };
 
-  // Check if user is authenticated
   useEffect(() => {
     if (!currentUser) {
       navigate("/login");
@@ -159,18 +131,12 @@ function Dashboard() {
         onLogout={handleLogout}
       />
 
+      <OfflineIndicator />
+
       <main className="flex-1 px-3 sm:px-4 py-5 sm:py-6 max-w-6xl mx-auto w-full fade-up">
         {error && (
           <div className="alert alert-error mb-3">
             <span>{error}</span>
-          </div>
-        )}
-        {!apiStatus && (
-          <div className="alert alert-warning mb-3">
-            <span>
-              Cannot connect to the API server. Please check if the backend is
-              running.
-            </span>
           </div>
         )}
 
@@ -191,7 +157,7 @@ function Dashboard() {
             <button
               className="btn btn-primary btn-sm sm:btn-md"
               onClick={handleCreateNote}
-              disabled={createLoading || !apiStatus}
+              disabled={createLoading}
             >
               {createLoading && (
                 <span className="loading loading-spinner loading-xs mr-2" />
@@ -212,9 +178,9 @@ function Dashboard() {
                 Sync Status
               </p>
               <p
-                className={`text-lg font-semibold ${apiStatus ? "text-success" : "text-error"}`}
+                className={`text-lg font-semibold ${connectionStatus === "connected" ? "text-success" : "text-warning"}`}
               >
-                {apiStatus ? "Online" : "Offline"}
+                {connectionStatus === "connected" ? "Online" : "Reconnecting"}
               </p>
             </div>
             <div className="rounded-xl border border-base-300/60 bg-base-100/70 px-3 py-2 col-span-2 sm:col-span-1">
@@ -227,8 +193,10 @@ function Dashboard() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center items-center py-16">
-            <span className="loading loading-spinner loading-lg" />
+          <div className="grid gap-4 sm:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <NoteCardSkeleton key={i} />
+            ))}
           </div>
         ) : notes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -241,7 +209,7 @@ function Dashboard() {
             <button
               className="btn btn-outline btn-primary"
               onClick={handleCreateNote}
-              disabled={createLoading || !apiStatus}
+              disabled={createLoading}
             >
               Create a note
             </button>
@@ -259,6 +227,16 @@ function Dashboard() {
           </div>
         )}
       </main>
+
+      <ConfirmModal
+        isOpen={!!noteToDelete}
+        title="Delete Note"
+        message={`Are you sure you want to delete "${noteToDelete?.title}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        confirmClass="btn-error"
+        onConfirm={confirmDelete}
+        onCancel={() => setNoteToDelete(null)}
+      />
     </div>
   );
 }
