@@ -1,6 +1,5 @@
 package com.collabnotes.collabnotes.config;
 
-import java.beans.Customizer;
 import java.nio.charset.StandardCharsets;
 
 import javax.crypto.SecretKey;
@@ -9,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -39,7 +39,7 @@ public class SecurityConfig {
             @Value("${app.auth.jwt.secret-key:defaultSecretKeyForDevelopmentOnlyMustBeAtLeast256BitsLong}") String secretKey) {
         SecretKey key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
         return NimbusJwtDecoder.withSecretKey(key)
-                .macAlgorithm(MacAlgorithm.HS384)
+                .macAlgorithm(MacAlgorithm.HS256)
                 .build();
     }
 
@@ -65,7 +65,7 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtDecoder localJwtDecoder,
-            BearerTokenResolver bearerTokenResolver) throws Exception {
+            BearerTokenResolver bearerTokenResolver) {
 
         http
                 .cors(Customizer.withDefaults())
@@ -85,7 +85,11 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html")
-                        .permitAll())
+                        .permitAll()
+                        .anyRequest().authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.decoder(localJwtDecoder))
+                        .bearerTokenResolver(bearerTokenResolver))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint())
                         .accessDeniedHandler(new BearerTokenAccessDeniedHandler()));

@@ -154,7 +154,7 @@ class NoteServiceImplTest {
         request.setAnalysis(Map.of("status", "ok"));
 
         when(noteRepository.findById("note-1")).thenReturn(Optional.of(existing));
-        when(noteRepository.save(any(Note.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(noteRepository.saveAndFlush(any(Note.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(collaboratorRepository.findByNoteId("note-1")).thenReturn(List.of());
 
         NoteDTO result = noteService.updateNote("note-1", request, "owner-1");

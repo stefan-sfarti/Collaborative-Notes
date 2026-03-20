@@ -13,6 +13,7 @@ public class NoteDTO {
     private Date createdAt;
     private Date updatedAt;
     private Map<String, Object> analysis;
+    private Long version;
 
     public NoteDTO() {
     }
@@ -90,5 +91,13 @@ public class NoteDTO {
 
     public void setAnalysis(Map<String, Object> analysis) {
         this.analysis = analysis;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

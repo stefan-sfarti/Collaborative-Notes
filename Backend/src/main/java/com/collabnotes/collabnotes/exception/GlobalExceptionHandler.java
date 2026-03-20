@@ -54,6 +54,22 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(pDetail, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ProblemDetail> handleConflictException(ConflictException ex) {
+        log.warn("Conflict: {}", ex.getMessage());
+        ProblemDetail pDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        return new ResponseEntity<>(pDetail, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ProblemDetail> handleOptimisticLockingException(
+            org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        log.warn("Optimistic locking conflict: {}", ex.getMessage());
+        ProblemDetail pDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "Note was modified by another user. Please refresh and try again.");
+        return new ResponseEntity<>(pDetail, HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleAllExceptions(
             Exception ex, WebRequest request) {

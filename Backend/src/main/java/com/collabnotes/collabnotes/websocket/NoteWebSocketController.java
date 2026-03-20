@@ -20,6 +20,7 @@ import org.springframework.stereotype.Controller;
 
 import com.collabnotes.collabnotes.dto.NoteDTO;
 import com.collabnotes.collabnotes.dto.UserResponse;
+import com.collabnotes.collabnotes.exception.ConflictException;
 import com.collabnotes.collabnotes.metrics.MetricsService;
 import com.collabnotes.collabnotes.service.NoteService;
 import com.collabnotes.collabnotes.service.NoteSessionService;
@@ -38,6 +39,7 @@ import com.collabnotes.collabnotes.websocket.message.UserPresenceMessage;
 public class NoteWebSocketController {
 
     private static final Logger logger = LoggerFactory.getLogger(NoteWebSocketController.class);
+    private static final String USER_ERRORS_QUEUE = "/queue/errors";
 
     private final NoteService noteService;
     private final UserService userService;
@@ -102,8 +104,23 @@ public class NoteWebSocketController {
             noteDTO.setId(noteId);
             noteDTO.setContent(message.getContent());
             noteDTO.setTitle(message.getTitle());
-            NoteDTO updatedNote = noteService.updateNote(noteId, noteDTO, userId);
-            
+            // Forward the client's version so the service can detect conflicts.
+            // versionNumber == 0 means the client is not tracking versions (legacy).
+            noteDTO.setVersion(message.getVersionNumber() > 0 ? message.getVersionNumber() : null);
+
+            NoteDTO updatedNote;
+            try {
+                updatedNote = noteService.updateNote(noteId, noteDTO, userId);
+            } catch (ConflictException | org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+                logger.warn("Version conflict for note {} by user {}: {}", noteId, userId, e.getMessage());
+                ErrorMessage error = new ErrorMessage();
+                error.setErrorCode("CONFLICT");
+                error.setErrorMessage("Note was modified by another user. Please refresh and try again.");
+                error.setOriginalMessageId(message.getMessageId());
+                messagingTemplate.convertAndSendToUser(userId, USER_ERRORS_QUEUE, error);
+                return null;
+            }
+
             if (updatedNote == null) {
                 logger.error("Failed to update note in DB: noteId={}", noteId);
                 throw new IllegalStateException("Failed to save note contents");
@@ -112,6 +129,8 @@ public class NoteWebSocketController {
             message.setUserId(userId);
             message.setTimestamp(Date.from(Instant.now()));
             message.setNoteId(noteId);
+            // Broadcast the new authoritative version so all clients stay in sync.
+            message.setVersionNumber(updatedNote.getVersion() != null ? updatedNote.getVersion() : 0);
 
             return message;
         } finally {
@@ -249,7 +268,7 @@ public class NoteWebSocketController {
             error.setErrorMessage("You don't have permission to comment on this note");
             error.setOriginalMessageId(message.getMessageId());
             messagingTemplate.convertAndSendToUser(userId,
-                    "/queue/errors", error);
+                    USER_ERRORS_QUEUE, error);
             return null;
         }
         return message;
@@ -274,7 +293,7 @@ public class NoteWebSocketController {
             error.setErrorCode("PERMISSION_DENIED");
             error.setErrorMessage("You don't have permission to access this note");
             messagingTemplate.convertAndSendToUser(userId,
-                    "/queue/errors", error);
+                    USER_ERRORS_QUEUE, error);
             return;
         }
 
@@ -304,6 +323,7 @@ public class NoteWebSocketController {
         stateMessage.setNoteId(noteId);
         stateMessage.setTitle(note.getTitle());
         stateMessage.setContent(note.getContent());
+        stateMessage.setVersionNumber(note.getVersion() != null ? note.getVersion() : 0);
         stateMessage.setActiveUsers(activeUsers);
 
         List<String> collaboratorIds = new java.util.ArrayList<>(noteService.getNoteCollaborators(noteId, userId));

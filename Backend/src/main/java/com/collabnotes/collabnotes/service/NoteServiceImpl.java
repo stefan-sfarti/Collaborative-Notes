@@ -22,6 +22,7 @@ import com.collabnotes.collabnotes.dto.NoteDTO;
 import com.collabnotes.collabnotes.entity.Collaborator;
 import com.collabnotes.collabnotes.entity.Note;
 import com.collabnotes.collabnotes.entity.User;
+import com.collabnotes.collabnotes.exception.ConflictException;
 import com.collabnotes.collabnotes.repository.CollaboratorRepository;
 import com.collabnotes.collabnotes.repository.NoteRepository;
 import com.collabnotes.collabnotes.repository.UserRepository;
@@ -119,6 +120,14 @@ public class NoteServiceImpl implements NoteService {
             return null;
         }
 
+        // Optimistic version check: if the client sent a version, it must match the DB.
+        // Version 0 / null means the client is not tracking versions (legacy / initial rollout).
+        if (noteDTO.getVersion() != null && noteDTO.getVersion() > 0
+                && !noteDTO.getVersion().equals(note.getVersion())) {
+            throw new ConflictException(
+                    "Note was modified by another user. Please refresh and try again.");
+        }
+
         note.setTitle(noteDTO.getTitle());
         note.setContent(noteDTO.getContent());
         note.setUpdatedAt(LocalDateTime.now());
@@ -127,7 +136,11 @@ public class NoteServiceImpl implements NoteService {
             note.setAnalysis(noteDTO.getAnalysis().toString());
         }
 
-        note = noteRepository.save(note);
+        // saveAndFlush forces the DB write (and @Version UPDATE WHERE version=N) to
+        // happen inside this transaction, so ObjectOptimisticLockingFailureException
+        // surfaces here rather than at commit time after the caller has already
+        // broadcast a success response.
+        note = noteRepository.saveAndFlush(note);
 
         noteEventPublisher.publishNoteUpdate(id, userId, "update");
 
@@ -311,6 +324,7 @@ public class NoteServiceImpl implements NoteService {
         dto.setTitle(note.getTitle());
         dto.setContent(note.getContent());
         dto.setOwnerId(note.getOwnerId());
+        dto.setVersion(note.getVersion());
         dto.setCreatedAt(java.util.Date.from(note.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
         dto.setUpdatedAt(note.getUpdatedAt() != null
                 ? java.util.Date.from(note.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())

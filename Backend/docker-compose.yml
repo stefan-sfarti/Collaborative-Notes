@@ -50,20 +50,6 @@ services:
     networks:
       - collabnotes-network
 
-  # Keycloak for authentication
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0
-    container_name: collabnotes-keycloak
-    command: start-dev
-    environment:
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
-      - KC_DB=dev-file
-    ports:
-      - "8080:8080"
-    networks:
-      - collabnotes-network
-
 networks:
   collabnotes-network:
     driver: bridge
