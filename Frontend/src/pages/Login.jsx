@@ -3,7 +3,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 function Login() {
-    const { localLogin, error, isAuthenticated } = useAuth();
+    const { login, error, isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -14,7 +14,7 @@ function Login() {
         if (!email || !password) return;
         try {
             setSubmitting(true);
-            await localLogin(email, password);
+            await login(email, password);
             navigate('/dashboard');
         } catch (err) {
             console.error('Local login error:', err);

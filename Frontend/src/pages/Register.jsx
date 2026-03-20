@@ -1,10 +1,10 @@
 // src/pages/Register.jsx
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 function Register() {
-    const { localRegister, error, isAuthenticated } = useAuth();
+    const { register, error, isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -15,7 +15,7 @@ function Register() {
         if (!email || !password) return;
         try {
             setSubmitting(true);
-            await localRegister(email, password);
+            await register(email, password);
             navigate('/dashboard');
         } catch (err) {
             console.error('Local registration error:', err);

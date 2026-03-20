@@ -15,12 +15,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.collabnotes.collabnotes.dto.InviteRequest;
 import com.collabnotes.collabnotes.dto.NoteDTO;
+import com.collabnotes.collabnotes.exception.ResourceNotFoundException;
+import com.collabnotes.collabnotes.exception.UnauthorizedException;
 import com.collabnotes.collabnotes.service.NoteService;
 
 @RestController
-@RequestMapping("/api/notes")
+@RequestMapping({ "/api/notes", "/notes" })
 public class NoteController {
+
+    private static final String UNAUTHORIZED_MSG = "Unauthorized";
+    private static final String NOT_FOUND_MSG = "Note not found or no permission";
 
     private final NoteService noteService;
 
@@ -29,149 +35,94 @@ public class NoteController {
     }
 
     @PostMapping
-    public ResponseEntity<?> createNote(@RequestBody NoteDTO noteDTO, Authentication authentication) {
-        try {
-            String userId = getUserIdFromAuthentication(authentication);
-            if (userId == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
-            }
-
-            NoteDTO createdNote = noteService.createNote(noteDTO, userId);
-            return ResponseEntity.status(HttpStatus.CREATED).body(createdNote);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error creating note: " + e.getMessage());
-        }
+    public ResponseEntity<NoteDTO> createNote(@RequestBody NoteDTO noteDTO, Authentication authentication) {
+        String userId = getUserIdFromAuthenticationOrThrow(authentication);
+        NoteDTO createdNote = noteService.createNote(noteDTO, userId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdNote);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getNoteById(@PathVariable String id, Authentication authentication) {
-        try {
-            String userId = getUserIdFromAuthentication(authentication);
-            if (userId == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
-            }
-
-            NoteDTO note = noteService.getNoteById(id, userId);
-            if (note == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Note not found");
-            }
-
-            return ResponseEntity.ok(note);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error retrieving note: " + e.getMessage());
+    public ResponseEntity<NoteDTO> getNoteById(@PathVariable("id") String id, Authentication authentication) {
+        String userId = getUserIdFromAuthenticationOrThrow(authentication);
+        NoteDTO note = noteService.getNoteById(id, userId);
+        if (note == null) {
+            throw new ResourceNotFoundException("Note not found");
         }
+        return ResponseEntity.ok(note);
     }
 
     @GetMapping
-    public ResponseEntity<?> getAllNotes(Authentication authentication) {
-        try {
-            String userId = getUserIdFromAuthentication(authentication);
-            if (userId == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
-            }
-
-            List<NoteDTO> notes = noteService.getAllNotesByUser(userId);
-            return ResponseEntity.ok(notes);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error retrieving notes: " + e.getMessage());
-        }
+    public ResponseEntity<List<NoteDTO>> getAllNotes(Authentication authentication) {
+        String userId = getUserIdFromAuthenticationOrThrow(authentication);
+        List<NoteDTO> notes = noteService.getAllNotesByUser(userId);
+        return ResponseEntity.ok(notes);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateNote(
-            @PathVariable String id,
+    public ResponseEntity<NoteDTO> updateNote(
+            @PathVariable("id") String id,
             @RequestBody NoteDTO noteDTO,
             Authentication authentication) {
-        try {
-            String userId = getUserIdFromAuthentication(authentication);
-            if (userId == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
-            }
-
-            NoteDTO updatedNote = noteService.updateNote(id, noteDTO, userId);
-            if (updatedNote == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Note not found or no permission");
-            }
-
-            return ResponseEntity.ok(updatedNote);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error updating note: " + e.getMessage());
+        String userId = getUserIdFromAuthenticationOrThrow(authentication);
+        NoteDTO updatedNote = noteService.updateNote(id, noteDTO, userId);
+        if (updatedNote == null) {
+            throw new ResourceNotFoundException(NOT_FOUND_MSG);
         }
+        return ResponseEntity.ok(updatedNote);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteNote(@PathVariable String id, Authentication authentication) {
-        try {
-            String userId = getUserIdFromAuthentication(authentication);
-            if (userId == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
-            }
-
-            boolean deleted = noteService.deleteNote(id, userId);
-            if (!deleted) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Note not found or no permission");
-            }
-
-            return ResponseEntity.ok("Note deleted successfully");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error deleting note: " + e.getMessage());
+    public ResponseEntity<String> deleteNote(@PathVariable("id") String id, Authentication authentication) {
+        String userId = getUserIdFromAuthenticationOrThrow(authentication);
+        boolean deleted = noteService.deleteNote(id, userId);
+        if (!deleted) {
+            throw new ResourceNotFoundException(NOT_FOUND_MSG);
         }
+        return ResponseEntity.ok("Note deleted successfully");
+    }
+
+    @PostMapping("/{id}/invite")
+    public ResponseEntity<String> inviteCollaborator(
+            @PathVariable("id") String id,
+            @RequestBody InviteRequest inviteRequest,
+            Authentication authentication) {
+        String userId = getUserIdFromAuthenticationOrThrow(authentication);
+        boolean invited = noteService.inviteCollaboratorByEmail(id, inviteRequest.getEmail(), userId);
+        if (!invited) {
+            throw new ResourceNotFoundException(NOT_FOUND_MSG);
+        }
+        return ResponseEntity.ok("Collaborator invited successfully");
     }
 
     @PostMapping("/{id}/collaborators/{collaboratorId}")
-    public ResponseEntity<?> addCollaborator(
-            @PathVariable String id,
-            @PathVariable String collaboratorId,
+    public ResponseEntity<String> addCollaborator(
+            @PathVariable("id") String id,
+            @PathVariable("collaboratorId") String collaboratorId,
             Authentication authentication) {
-        try {
-            String userId = getUserIdFromAuthentication(authentication);
-            if (userId == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
-            }
-
-            boolean added = noteService.addCollaborator(id, collaboratorId, userId);
-            if (!added) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Note not found or no permission");
-            }
-
-            return ResponseEntity.ok("Collaborator added successfully");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error adding collaborator: " + e.getMessage());
+        String userId = getUserIdFromAuthenticationOrThrow(authentication);
+        boolean added = noteService.addCollaborator(id, collaboratorId, userId);
+        if (!added) {
+            throw new ResourceNotFoundException(NOT_FOUND_MSG);
         }
+        return ResponseEntity.ok("Collaborator added successfully");
     }
 
     @DeleteMapping("/{id}/collaborators/{collaboratorId}")
-    public ResponseEntity<?> removeCollaborator(
-            @PathVariable String id,
-            @PathVariable String collaboratorId,
+    public ResponseEntity<String> removeCollaborator(
+            @PathVariable("id") String id,
+            @PathVariable("collaboratorId") String collaboratorId,
             Authentication authentication) {
-        try {
-            String userId = getUserIdFromAuthentication(authentication);
-            if (userId == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
-            }
-
-            boolean removed = noteService.removeCollaborator(id, collaboratorId, userId);
-            if (!removed) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Note not found or no permission");
-            }
-
-            return ResponseEntity.ok("Collaborator removed successfully");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error removing collaborator: " + e.getMessage());
+        String userId = getUserIdFromAuthenticationOrThrow(authentication);
+        boolean removed = noteService.removeCollaborator(id, collaboratorId, userId);
+        if (!removed) {
+            throw new ResourceNotFoundException(NOT_FOUND_MSG);
         }
+        return ResponseEntity.ok("Collaborator removed successfully");
     }
 
-    private String getUserIdFromAuthentication(Authentication authentication) {
+    private String getUserIdFromAuthenticationOrThrow(Authentication authentication) {
         if (authentication == null) {
-            return null;
+            throw new UnauthorizedException(UNAUTHORIZED_MSG);
         }
         if (authentication.getPrincipal() instanceof Jwt jwt) {
             return jwt.getSubject();

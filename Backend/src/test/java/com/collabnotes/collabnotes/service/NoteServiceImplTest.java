@@ -19,9 +19,9 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.CacheManager;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.collabnotes.collabnotes.dto.NoteDTO;
@@ -51,6 +51,9 @@ class NoteServiceImplTest {
     private NoteEventPublisher noteEventPublisher;
 
     @Mock
+    private CacheManager cacheManager;
+
+    @Mock
     private NoteServiceImpl selfProxy;
 
     private NoteServiceImpl noteService;
@@ -63,6 +66,7 @@ class NoteServiceImplTest {
                 collaboratorRepository,
                 messagingTemplate,
                 noteEventPublisher,
+            cacheManager,
                 selfProxy);
     }
 
@@ -150,7 +154,7 @@ class NoteServiceImplTest {
         request.setAnalysis(Map.of("status", "ok"));
 
         when(noteRepository.findById("note-1")).thenReturn(Optional.of(existing));
-        when(noteRepository.save(any(Note.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(noteRepository.saveAndFlush(any(Note.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(collaboratorRepository.findByNoteId("note-1")).thenReturn(List.of());
 
         NoteDTO result = noteService.updateNote("note-1", request, "owner-1");
@@ -187,7 +191,7 @@ class NoteServiceImplTest {
         assertTrue(added);
         verify(collaboratorRepository).save(any(Collaborator.class));
         verify(noteRepository).save(note);
-        verify(messagingTemplate).convertAndSend(eq("/topic/notes/note-1/events"), any(Map.class));
+        verify(messagingTemplate).convertAndSend(eq("/topic/notes/note-1/events"), (Object) any(Map.class));
         verify(noteEventPublisher).publishNoteUpdate("note-1", "owner-1", "collaborator_added");
     }
 

@@ -9,6 +9,8 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.lang.NonNull;
@@ -20,6 +22,7 @@ import com.collabnotes.collabnotes.dto.NoteDTO;
 import com.collabnotes.collabnotes.entity.Collaborator;
 import com.collabnotes.collabnotes.entity.Note;
 import com.collabnotes.collabnotes.entity.User;
+import com.collabnotes.collabnotes.exception.ConflictException;
 import com.collabnotes.collabnotes.repository.CollaboratorRepository;
 import com.collabnotes.collabnotes.repository.NoteRepository;
 import com.collabnotes.collabnotes.repository.UserRepository;
@@ -35,6 +38,7 @@ public class NoteServiceImpl implements NoteService {
     private final SimpMessagingTemplate messagingTemplate;
     private final NoteEventPublisher noteEventPublisher;
     private final NoteServiceImpl self;
+    private final CacheManager cacheManager;
 
     public NoteServiceImpl(
             NoteRepository noteRepository,
@@ -42,12 +46,14 @@ public class NoteServiceImpl implements NoteService {
             CollaboratorRepository collaboratorRepository,
             SimpMessagingTemplate messagingTemplate,
             NoteEventPublisher noteEventPublisher,
+            CacheManager cacheManager,
             @Lazy NoteServiceImpl self) {
         this.noteRepository = noteRepository;
         this.userRepository = userRepository;
         this.collaboratorRepository = collaboratorRepository;
         this.messagingTemplate = messagingTemplate;
         this.noteEventPublisher = noteEventPublisher;
+        this.cacheManager = cacheManager;
         this.self = self;
     }
 
@@ -114,6 +120,14 @@ public class NoteServiceImpl implements NoteService {
             return null;
         }
 
+        // Optimistic version check: if the client sent a version, it must match the DB.
+        // Version 0 / null means the client is not tracking versions (legacy / initial rollout).
+        if (noteDTO.getVersion() != null && noteDTO.getVersion() > 0
+                && !noteDTO.getVersion().equals(note.getVersion())) {
+            throw new ConflictException(
+                    "Note was modified by another user. Please refresh and try again.");
+        }
+
         note.setTitle(noteDTO.getTitle());
         note.setContent(noteDTO.getContent());
         note.setUpdatedAt(LocalDateTime.now());
@@ -122,7 +136,11 @@ public class NoteServiceImpl implements NoteService {
             note.setAnalysis(noteDTO.getAnalysis().toString());
         }
 
-        note = noteRepository.save(note);
+        // saveAndFlush forces the DB write (and @Version UPDATE WHERE version=N) to
+        // happen inside this transaction, so ObjectOptimisticLockingFailureException
+        // surfaces here rather than at commit time after the caller has already
+        // broadcast a success response.
+        note = noteRepository.saveAndFlush(note);
 
         noteEventPublisher.publishNoteUpdate(id, userId, "update");
 
@@ -148,6 +166,18 @@ public class NoteServiceImpl implements NoteService {
 
         noteRepository.delete(note);
         return true;
+    }
+
+    @Override
+    @Transactional
+    public boolean inviteCollaboratorByEmail(String noteId, String email, String userId) {
+        logger.info("Inviting collaborator {} to note {} by user {}", email, noteId, userId);
+        User collaboratorUser = userRepository.findByEmail(email).orElse(null);
+        if (collaboratorUser == null) {
+            logger.warn("User with email {} not found", email);
+            throw new IllegalArgumentException("User with email " + email + " not found");
+        }
+        return self.addCollaborator(noteId, collaboratorUser.getId(), userId);
     }
 
     @Override
@@ -189,6 +219,7 @@ public class NoteServiceImpl implements NoteService {
         noteRepository.save(note);
 
         logger.info("Successfully added collaborator {} to note {}", collaboratorId, noteId);
+        evictNoteAccessCacheForUsers(noteId, userId, collaboratorId, note.getOwnerId());
         notifyCollaborators(noteId, userId, "collaborator_added");
         noteEventPublisher.publishNoteUpdate(noteId, userId, "collaborator_added");
 
@@ -218,6 +249,7 @@ public class NoteServiceImpl implements NoteService {
             noteRepository.save(note);
 
             logger.info("Successfully removed collaborator {} from note {}", collaboratorId, noteId);
+            evictNoteAccessCacheForUsers(noteId, userId, collaboratorId, note.getOwnerId());
             notifyCollaborators(noteId, userId, "collaborator_removed");
             noteEventPublisher.publishNoteUpdate(noteId, userId, "collaborator_removed");
 
@@ -256,7 +288,7 @@ public class NoteServiceImpl implements NoteService {
         return collaboratorIds;
     }
 
-    @Cacheable(value = "noteAccessCache", key = "#noteId + '-' + #userId")
+    @Cacheable(value = "noteAccessCache", key = "#p0 + '-' + #p1")
     @Transactional(readOnly = true)
     public boolean hasNoteAccess(String noteId, String userId) {
         Note note = noteRepository.findById(noteId).orElse(null);
@@ -272,12 +304,27 @@ public class NoteServiceImpl implements NoteService {
         return collaboratorRepository.existsByNoteIdAndUserId(noteId, userId);
     }
 
+    private void evictNoteAccessCacheForUsers(String noteId, String... userIds) {
+        Cache noteAccessCache = cacheManager.getCache("noteAccessCache");
+        if (noteAccessCache == null || userIds == null) {
+            return;
+        }
+
+        for (String userId : userIds) {
+            if (userId == null || userId.isBlank()) {
+                continue;
+            }
+            noteAccessCache.evict(noteId + "-" + userId);
+        }
+    }
+
     private NoteDTO convertToDTO(Note note) {
         NoteDTO dto = new NoteDTO();
         dto.setId(note.getId());
         dto.setTitle(note.getTitle());
         dto.setContent(note.getContent());
         dto.setOwnerId(note.getOwnerId());
+        dto.setVersion(note.getVersion());
         dto.setCreatedAt(java.util.Date.from(note.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
         dto.setUpdatedAt(note.getUpdatedAt() != null
                 ? java.util.Date.from(note.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
@@ -295,6 +342,6 @@ public class NoteServiceImpl implements NoteService {
         notification.put("userId", userId);
         notification.put("timestamp", LocalDateTime.now());
 
-        messagingTemplate.convertAndSend("/topic/notes/" + noteId + "/events", notification);
+        messagingTemplate.convertAndSend("/topic/notes/" + noteId + "/events", (Object) notification);
     }
 }
