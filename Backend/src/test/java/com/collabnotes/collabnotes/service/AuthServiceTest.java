@@ -64,6 +64,14 @@ class AuthServiceTest {
     }
 
     @Test
+    void getCurrentUserId_whenPrincipalIsNotJwt_returnsAuthenticationName() {
+        when(authentication.getPrincipal()).thenReturn("user-123");
+        when(authentication.getName()).thenReturn("user-123");
+
+        assertEquals("user-123", authService.getCurrentUserId(authentication));
+    }
+
+    @Test
     void getOrCreateUserFromJwt_whenUserExists_returnsExistingUser() {
         User existing = new User("user-1", "existing@example.com", "Existing");
         Jwt jwt = Jwt.withTokenValue("token")
@@ -112,6 +120,45 @@ class AuthServiceTest {
         assertNotNull(saved.getCreatedAt());
 
         assertEquals("external-id", result.getId());
+    }
+
+    @Test
+    void getOrCreateUserFromJwt_whenNameMissing_usesPreferredUsernameAsDisplayName() {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("external-id")
+                .claim("email", "ext@example.com")
+                .claim("preferred_username", "ext-user")
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+
+        when(userRepository.findById("external-id")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("external-id-external-auth")).thenReturn("encoded-password");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User result = authService.getOrCreateUserFromJwt(jwt);
+
+        assertEquals("ext-user", result.getDisplayName());
+    }
+
+    @Test
+    void getOrCreateUserFromJwt_whenNameAndPreferredUsernameMissing_usesEmailAsDisplayName() {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("external-id")
+                .claim("email", "ext@example.com")
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+
+        when(userRepository.findById("external-id")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("external-id-external-auth")).thenReturn("encoded-password");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User result = authService.getOrCreateUserFromJwt(jwt);
+
+        assertEquals("ext@example.com", result.getDisplayName());
     }
 
     @Test

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Objects;
 
 import javax.crypto.SecretKey;
 
@@ -33,6 +34,7 @@ class JwtUtilTest {
     void setUp() {
         jwtUtil = new JwtUtil();
         ReflectionTestUtils.setField(jwtUtil, "secretKey", SECRET);
+        ReflectionTestUtils.setField(jwtUtil, "expirationInMs", 86400000L);
     }
 
     @Nested
@@ -65,7 +67,10 @@ class JwtUtilTest {
 
             assertNotNull(decoded.getIssuedAt());
             assertNotNull(decoded.getExpiresAt());
-            assertTrue(decoded.getExpiresAt().isAfter(decoded.getIssuedAt()));
+
+            Date issuedAt = Date.from(decoded.getIssuedAt());
+            Date expiresAt = Date.from(decoded.getExpiresAt());
+            assertTrue(expiresAt.after(issuedAt));
         }
 
         @Test
@@ -78,8 +83,38 @@ class JwtUtilTest {
                     .build()
                     .decode(token);
 
-            long diffMs = decoded.getExpiresAt().toEpochMilli() - decoded.getIssuedAt().toEpochMilli();
+            assertNotNull(decoded.getIssuedAt());
+            assertNotNull(decoded.getExpiresAt());
+
+            long diffMs = Objects.requireNonNull(decoded.getExpiresAt()).toEpochMilli()
+                    - Objects.requireNonNull(decoded.getIssuedAt()).toEpochMilli();
             assertEquals(86400000L, diffMs);
+        }
+
+        @Test
+        void tokenIncludesNameClaimWhenProvided() {
+            String token = jwtUtil.generateToken("user-1", "u@e.com", "Display Name");
+
+            SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
+            Jwt decoded = NimbusJwtDecoder.withSecretKey(key)
+                    .macAlgorithm(MacAlgorithm.HS256)
+                    .build()
+                    .decode(token);
+
+            assertEquals("Display Name", decoded.getClaimAsString("name"));
+        }
+
+        @Test
+        void tokenSkipsNameClaimWhenBlank() {
+            String token = jwtUtil.generateToken("user-1", "u@e.com", "  ");
+
+            SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
+            Jwt decoded = NimbusJwtDecoder.withSecretKey(key)
+                    .macAlgorithm(MacAlgorithm.HS256)
+                    .build()
+                    .decode(token);
+
+            assertNull(decoded.getClaimAsString("name"));
         }
     }
 

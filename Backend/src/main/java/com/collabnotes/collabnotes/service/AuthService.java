@@ -30,18 +30,22 @@ public class AuthService {
             return null;
         }
 
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        return jwt.getSubject();
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof Jwt jwt) {
+            return jwt.getSubject();
+        }
+
+        return authentication.getName();
     }
 
     public User getOrCreateUserFromJwt(Jwt jwt) {
         String userId = jwt.getSubject();
         String email = jwt.getClaimAsString("email");
-        String displayName = jwt.getClaimAsString("name");
+        String displayName = resolveDisplayName(jwt, email, userId);
 
         return userRepository.findById(userId).orElseGet(() -> {
             User newUser = new User(userId, email, displayName);
-        
+
             newUser.setPassword(passwordEncoder.encode(userId + "-external-auth"));
             newUser.setCreatedAt(LocalDateTime.now());
             logger.info("Creating new user from JWT: {}", userId);
@@ -55,5 +59,23 @@ public class AuthService {
 
     public User findByEmail(String email) {
         return userRepository.findByEmail(email).orElse(null);
+    }
+
+    private String resolveDisplayName(Jwt jwt, String email, String userId) {
+        String name = jwt.getClaimAsString("name");
+        if (name != null && !name.isBlank()) {
+            return name;
+        }
+
+        String preferredUsername = jwt.getClaimAsString("preferred_username");
+        if (preferredUsername != null && !preferredUsername.isBlank()) {
+            return preferredUsername;
+        }
+
+        if (email != null && !email.isBlank()) {
+            return email;
+        }
+
+        return userId;
     }
 }

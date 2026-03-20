@@ -75,7 +75,7 @@ public class UserService {
         userRepository.save(user);
         logger.info("Registered new user: {}", userId);
 
-        String token = jwtUtil.generateToken(userId, email);
+        String token = jwtUtil.generateToken(userId, email, user.getDisplayName());
         return new AuthResponse(token, userId, email, user.getDisplayName());
     }
 
@@ -89,7 +89,7 @@ public class UserService {
             return null;
         }
 
-        String token = jwtUtil.generateToken(user.getId(), email);
+        String token = jwtUtil.generateToken(user.getId(), email, user.getDisplayName());
         return new AuthResponse(token, user.getId(), email, user.getDisplayName());
     }
 }
