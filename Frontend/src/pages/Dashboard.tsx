@@ -1,4 +1,3 @@
-// src/pages/Dashboard.js
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
@@ -9,15 +8,16 @@ import NoteCardSkeleton from "../components/NoteCardSkeleton";
 import OfflineIndicator from "../components/OfflineIndicator";
 import { useAuth } from "../contexts/AuthContext";
 import NoteService from "../services/NoteService";
-import { useWebSocket } from "../services/WebSocketProvider.jsx";
+import { useWebSocket } from "../services/WebSocketProvider";
 import { createApiError } from "../utils/errorUtils";
+import type { Note } from "../types";
 
 function Dashboard() {
-  const [notes, setNotes] = useState([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [createLoading, setCreateLoading] = useState(false);
   const [error, setError] = useState("");
-  const [noteToDelete, setNoteToDelete] = useState(null);
+  const [noteToDelete, setNoteToDelete] = useState<{ id: string; title: string } | null>(null);
   const { currentUser, logout, token } = useAuth();
   const { connectionStatus } = useWebSocket();
   const navigate = useNavigate();
@@ -31,7 +31,7 @@ function Dashboard() {
       } catch (err) {
         const errorMsg = `Failed to fetch notes: ${createApiError(err).message}`;
         setError(errorMsg);
-        if (err.status !== 401) {
+        if ((err as { status?: number }).status !== 401) {
           toast.error(errorMsg);
         }
       } finally {
@@ -52,12 +52,12 @@ function Dashboard() {
         content: "",
         ownerId: currentUser?.id,
       };
-      const createdNote = await NoteService.createNote(newNote);
+      const createdNote = await NoteService.createNote(newNote as { title: string; content: string; ownerId: string });
       navigate(`/notes/${createdNote.id}`);
     } catch (err) {
       const errorMsg = `Failed to create note: ${createApiError(err).message}`;
       setError(errorMsg);
-      if (err.status !== 401) {
+      if ((err as { status?: number }).status !== 401) {
         toast.error(errorMsg);
       }
     } finally {
@@ -65,12 +65,13 @@ function Dashboard() {
     }
   };
 
-  const handleDeleteNote = (noteId) => {
+  const handleDeleteNote = (noteId: string) => {
     const note = notes.find((n) => n.id === noteId);
     setNoteToDelete({ id: noteId, title: note?.title || "this note" });
   };
 
   const confirmDelete = async () => {
+    if (!noteToDelete) return;
     try {
       await NoteService.deleteNote(noteToDelete.id);
       setNotes(notes.filter((note) => note.id !== noteToDelete.id));
@@ -95,7 +96,7 @@ function Dashboard() {
     } catch (err) {
       const errorMsg = `Failed to fetch notes: ${createApiError(err).message}`;
       setError(errorMsg);
-      if (err.status !== 401) {
+      if ((err as { status?: number }).status !== 401) {
         toast.error(errorMsg);
       }
     } finally {
@@ -108,11 +109,11 @@ function Dashboard() {
       await logout();
       navigate("/login");
     } catch (err) {
-      setError("Failed to log out: " + err.message);
+      setError("Failed to log out: " + (err as Error).message);
     }
   };
 
-  const handleCardClick = (noteId) => {
+  const handleCardClick = (noteId: string) => {
     navigate(`/notes/${noteId}`);
   };
 

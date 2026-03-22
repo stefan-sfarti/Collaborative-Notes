@@ -67,8 +67,9 @@ class UserControllerTest {
                     .thenReturn(response);
 
             mockMvc.perform(post("/api/users/register")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"new@example.com\",\"password\":\"password123\",\"displayName\":\"New User\"}"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                            "{\"email\":\"new@example.com\",\"password\":\"password123\",\"displayName\":\"New User\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.token").value("jwt-token"))
                     .andExpect(jsonPath("$.userId").value("user-1"))
@@ -82,8 +83,8 @@ class UserControllerTest {
                     .thenThrow(new IllegalArgumentException("Email already registered"));
 
             mockMvc.perform(post("/api/users/register")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"taken@example.com\",\"password\":\"password123\",\"displayName\":\"Name\"}"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"taken@example.com\",\"password\":\"password123\",\"displayName\":\"Name\"}"))
                     .andExpect(status().isBadRequest());
         }
 
@@ -93,8 +94,8 @@ class UserControllerTest {
                     .thenThrow(new RuntimeException("DB connection failed"));
 
             mockMvc.perform(post("/api/users/register")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"a@b.com\",\"password\":\"password123\",\"displayName\":\"X\"}"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"a@b.com\",\"password\":\"password123\",\"displayName\":\"X\"}"))
                     .andExpect(status().isInternalServerError());
         }
     }
@@ -108,8 +109,8 @@ class UserControllerTest {
             when(userService.loginUser("user@example.com", "correct")).thenReturn(response);
 
             mockMvc.perform(post("/api/users/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"user@example.com\",\"password\":\"correct\"}"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"user@example.com\",\"password\":\"correct\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.token").value("jwt-token"));
         }
@@ -119,8 +120,8 @@ class UserControllerTest {
             when(userService.loginUser("user@example.com", "wrong")).thenReturn(null);
 
             mockMvc.perform(post("/api/users/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"user@example.com\",\"password\":\"wrong\"}"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"user@example.com\",\"password\":\"wrong\"}"))
                     .andExpect(status().isUnauthorized());
         }
 
@@ -130,8 +131,8 @@ class UserControllerTest {
                     .thenThrow(new RuntimeException("Unexpected"));
 
             mockMvc.perform(post("/api/users/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"a@b.com\",\"password\":\"pass\"}"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"a@b.com\",\"password\":\"pass\"}"))
                     .andExpect(status().isInternalServerError());
         }
     }
@@ -144,8 +145,8 @@ class UserControllerTest {
             when(userService.findUserIdByEmail("friend@example.com")).thenReturn("friend-1");
 
             mockMvc.perform(withAuth(post("/api/users/lookup")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"friend@example.com\"}")))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"friend@example.com\"}")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.userId").value("friend-1"));
         }
@@ -155,16 +156,16 @@ class UserControllerTest {
             when(userService.findUserIdByEmail("nobody@example.com")).thenReturn(null);
 
             mockMvc.perform(withAuth(post("/api/users/lookup")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"nobody@example.com\"}")))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"nobody@example.com\"}")))
                     .andExpect(status().isNotFound());
         }
 
         @Test
         void whenUnauthenticated_returns401() throws Exception {
             mockMvc.perform(post("/api/users/lookup")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"a@b.com\"}"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"a@b.com\"}"))
                     .andExpect(status().isUnauthorized());
         }
     }
@@ -224,6 +225,57 @@ class UserControllerTest {
         void whenUnauthenticated_returns401() throws Exception {
             mockMvc.perform(get("/api/users/me"))
                     .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Nested
+    class UpdateProfile {
+
+        @Test
+        void whenValid_returns200() throws Exception {
+            UserResponse response = new UserResponse("test-user", "new@example.com", "New Name", null);
+            when(userService.updateProfile("test-user", "new@example.com", "New Name")).thenReturn(response);
+
+            mockMvc.perform(
+                    withAuth(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/users/me"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"new@example.com\",\"displayName\":\"New Name\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.userId").value("test-user"))
+                    .andExpect(jsonPath("$.email").value("new@example.com"))
+                    .andExpect(jsonPath("$.displayName").value("New Name"));
+        }
+
+        @Test
+        void whenInvalidEmail_returns400() throws Exception {
+            mockMvc.perform(
+                    withAuth(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/users/me"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"not-an-email\",\"displayName\":\"New Name\"}"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void whenUserNotFound_returns404() throws Exception {
+            when(userService.updateProfile("test-user", "new@example.com", "New Name")).thenReturn(null);
+
+            mockMvc.perform(
+                    withAuth(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/users/me"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"new@example.com\",\"displayName\":\"New Name\"}"))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void whenEmailTaken_returns400() throws Exception {
+            when(userService.updateProfile("test-user", "taken@example.com", "New Name"))
+                    .thenThrow(new IllegalArgumentException("Email already taken"));
+
+            mockMvc.perform(
+                    withAuth(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/users/me"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"taken@example.com\",\"displayName\":\"New Name\"}"))
+                    .andExpect(status().isBadRequest());
         }
     }
 }

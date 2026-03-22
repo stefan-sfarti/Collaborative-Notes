@@ -1,21 +1,20 @@
-// src/App.js
-import React from "react";
+import { Toaster } from "react-hot-toast";
 import {
-  BrowserRouter as Router,
-  Route,
-  Routes,
   Navigate,
+  Route,
+  BrowserRouter as Router,
+  Routes,
 } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Dashboard from "./pages/Dashboard";
-import NoteEditor from "./pages/NoteEditor";
-import ProtectedRoute from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import OfflineIndicator from "./components/OfflineIndicator";
-import { WebSocketProvider } from "./services/WebSocketProvider.jsx";
-import { Toaster } from "react-hot-toast";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { AuthProvider } from "./contexts/AuthContext";
+import Dashboard from "./pages/Dashboard";
+import Login from "./pages/Login";
+import NoteEditor from "./pages/NoteEditor";
+import Profile from "./pages/Profile";
+import Register from "./pages/Register";
+import { WebSocketProvider } from "./services/WebSocketProvider";
 
 function App() {
   return (
@@ -34,6 +33,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <Profile />
                     </ProtectedRoute>
                   }
                 />

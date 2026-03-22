@@ -1,18 +1,17 @@
-import React from "react";
+import type { ActiveUserDisplay, User } from "../types";
+
+interface ActiveUsersListProps {
+  activeUsers?: ActiveUserDisplay[];
+  currentUser: User | null;
+}
 
 /**
  * Component to display a list of active users in the note editor.
  * Expects activeUsers to be an array of objects with at least { userId, display, isTyping }.
  */
-function ActiveUsersList({ activeUsers = [], currentUser }) {
-  const users = Array.isArray(activeUsers)
-    ? activeUsers
-    : activeUsers && typeof activeUsers === "object"
-      ? Object.values(activeUsers)
-      : [];
-
+function ActiveUsersList({ activeUsers = [], currentUser }: ActiveUsersListProps) {
   // Filter out any invalid user entries
-  const validUsers = users.filter(
+  const validUsers = activeUsers.filter(
     (user) => user && user.userId && user.display,
   );
 
@@ -27,8 +26,16 @@ function ActiveUsersList({ activeUsers = [], currentUser }) {
 
         <div className="max-h-48 overflow-auto text-sm space-y-1">
           {validUsers.length > 0 ? (
-            validUsers.map((user) =>
-              user.display === "Loading..." ? (
+            validUsers.map((user) => {
+              const isCurrentUser = user.userId === currentUser?.id;
+              const hasUnknownDisplay =
+                user.display === "Loading..." || user.display === "Unknown User";
+              const resolvedDisplay =
+                isCurrentUser && hasUnknownDisplay && currentUser?.email
+                  ? currentUser.email
+                  : user.display;
+
+              return user.display === "Loading..." && !isCurrentUser ? (
                 <div
                   key={user.userId}
                   className="flex items-center gap-2 p-2 rounded-lg"
@@ -41,8 +48,8 @@ function ActiveUsersList({ activeUsers = [], currentUser }) {
               ) : (
                 <div
                   key={user.userId}
-                  className={`flex items-center gap-2 p-2 rounded-lg ${
-                    user.userId === currentUser?.id
+                  className={`flex items-center gap-2 p-2 rounded-lg min-w-0 ${
+                    isCurrentUser
                       ? "bg-base-200/80"
                       : "hover:bg-base-200/60"
                   }`}
@@ -64,9 +71,9 @@ function ActiveUsersList({ activeUsers = [], currentUser }) {
                   </div>
                   <div className="flex flex-col flex-1 min-w-0">
                     <span className="truncate">
-                      {user.userId === currentUser?.id
-                        ? `${user.display} (You)`
-                        : user.display}
+                      {isCurrentUser
+                        ? `${resolvedDisplay} (You)`
+                        : resolvedDisplay}
                     </span>
                     <span className="text-xs text-base-content/60 flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-success" />
@@ -77,8 +84,8 @@ function ActiveUsersList({ activeUsers = [], currentUser }) {
                     </span>
                   </div>
                 </div>
-              ),
-            )
+              );
+            })
           ) : (
             <div className="p-2 text-xs text-base-content/60">
               <p>No other active users</p>

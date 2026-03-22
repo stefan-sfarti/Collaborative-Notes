@@ -10,6 +10,8 @@ public class NoteStateMessage extends BaseWebSocketMessage {
     private String title;
     private String content;
     private long versionNumber;
+    /** Current OT step version (prosemirror-collab authority version). */
+    private int otVersion;
     private Map<String, UserInfo> activeUsers;
     private Map<String, UserInfo> collaborators;
 
@@ -48,6 +50,14 @@ public class NoteStateMessage extends BaseWebSocketMessage {
 
     public void setVersionNumber(long versionNumber) {
         this.versionNumber = versionNumber;
+    }
+
+    public int getOtVersion() {
+        return otVersion;
+    }
+
+    public void setOtVersion(int otVersion) {
+        this.otVersion = otVersion;
     }
 
     public Map<String, UserInfo> getActiveUsers() {
