@@ -1,12 +1,10 @@
-import { useEffect, useRef } from "react";
-import React from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Placeholder from "@tiptap/extension-placeholder";
 import { Extension } from "@tiptap/core";
-import { sendableSteps } from "prosemirror-collab";
-import type { EditorView } from "prosemirror-view";
+import Placeholder from "@tiptap/extension-placeholder";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 import type { Plugin } from "prosemirror-state";
+import type { EditorView } from "prosemirror-view";
+import React, { useEffect, useRef } from "react";
 import { TOOLBAR_BUTTONS } from "../utils/toolbarConfig";
 
 interface RichTextEditorProps {
@@ -59,7 +57,7 @@ const RichTextEditor = ({
       if (!isRemoteOTStep) {
         onChange("content", e.getHTML());
       }
-      if (onEditorUpdate && e.view) {
+      if (collabPlugin && onEditorUpdate && e.view) {
         onEditorUpdate(e.view);
       }
     },
@@ -96,16 +94,6 @@ const RichTextEditor = ({
       isApplyingRemoteUpdateRef.current = false;
     }
   }, [content, editor, collabPlugin]);
-
-  // When OT is active, remote steps flow in via useOTCollab; however if a
-  // full-reset is needed (e.g. reconnect bootstrap) the parent can push a new
-  // content prop with collabPlugin set to null temporarily.
-  useEffect(() => {
-    if (!editor || !collabPlugin) return;
-    // Verify no pending steps are stuck after a content reset.
-    const sendable = sendableSteps(editor.view.state);
-    if (!sendable) return; // nothing to do
-  }, [editor, collabPlugin]);
 
   return (
     <section className="flex-1 min-h-0 flex flex-col px-3 sm:px-4 py-3 sm:py-4 gap-3 overflow-hidden">

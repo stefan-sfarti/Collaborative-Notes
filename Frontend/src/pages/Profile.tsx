@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import { useAuth } from "../contexts/AuthContext";
-import { UserService } from "../services/UserService";
+import NoteService from "../services/NoteService";
 
 const Profile = () => {
   const { currentUser, logout, updateCurrentUser } = useAuth();
@@ -20,7 +20,7 @@ const Profile = () => {
     const fetchProfile = async () => {
       try {
         setLoading(true);
-        const data = await UserService.getCurrentUser();
+        const data = await NoteService.getCurrentUser();
         // Use user.email, user.userId
         setEmail(data.email || "");
         setDisplayName(data.displayName || "");
@@ -44,7 +44,7 @@ const Profile = () => {
     try {
       setSaving(true);
       setError(null);
-      const updatedUserResponse = await UserService.updateProfile(email, displayName); // returns User
+      const updatedUserResponse = await NoteService.updateProfile(email, displayName); // returns User
       toast.success("Profile updated successfully");
       
       // Keep currentUser up to date in context

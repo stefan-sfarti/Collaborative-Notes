@@ -1,14 +1,14 @@
-import { Client } from "@stomp/stompjs";
 import type { IMessage, StompSubscription } from "@stomp/stompjs";
+import { Client } from "@stomp/stompjs";
+import type { MutableRefObject, ReactNode } from "react";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useRef,
+    useState,
 } from "react";
-import type { ReactNode, MutableRefObject } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import type { ConnectionStatus, WebSocketContextValue } from "../types";
 
@@ -49,7 +49,6 @@ interface SubscriptionChannel {
 
 // Channels to subscribe when joining a note.
 const SUBSCRIPTION_CHANNELS: SubscriptionChannel[] = [
-  { destination: (noteId) => `/topic/notes/${noteId}`, eventName: "note-update" },
   { destination: (noteId) => `/topic/notes/${noteId}/presence`, eventName: "user-presence" },
   { destination: (noteId) => `/topic/notes/${noteId}/typing`, eventName: "typing-indicator" },
   { destination: (noteId) => `/user/queue/notes/${noteId}/state`, eventName: "note-state" },
@@ -271,34 +270,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
   }, [currentUser?.id, token, subscribeToNote]);
 
-  const sendNoteUpdate = useCallback(
-    async (noteId: string, title: string, content: string): Promise<void> => {
-      const client = stompClientRef.current;
-      if (!client || !client.connected || !currentUser?.id || !noteId) return;
-
-      try {
-        const freshToken = await getFreshTokenRef.current();
-        if (!freshToken) return;
-
-        client.publish({
-          destination: `/app/notes/${noteId}/update`,
-          headers: {
-            Authorization: `Bearer ${freshToken}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            title,
-            content,
-            userId: currentUser.id,
-          }),
-        });
-      } catch (error) {
-        console.error(`Failed to send note update for ${noteId}:`, error);
-      }
-    },
-    [currentUser?.id],
-  );
-
   const sendTypingIndicator = useCallback(
     async (noteId: string, isTyping: boolean): Promise<void> => {
       const client = stompClientRef.current;
@@ -327,13 +298,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   );
 
   const sendOTSteps = useCallback(
-    async (noteId: string, version: number, steps: object[]): Promise<void> => {
+    async (noteId: string, version: number, steps: object[]): Promise<boolean> => {
       const client = stompClientRef.current;
-      if (!client || !client.connected || !noteId || steps.length === 0) return;
+      if (!client || !client.connected || !noteId || steps.length === 0) return false;
 
       try {
         const freshToken = await getFreshTokenRef.current();
-        if (!freshToken) return;
+        if (!freshToken) return false;
 
         client.publish({
           destination: `/app/notes/${noteId}/ot-submit`,
@@ -343,8 +314,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           },
           body: JSON.stringify({ version, steps }),
         });
+        return true;
       } catch (error) {
         console.error(`Failed to send OT steps for ${noteId}:`, error);
+        return false;
       }
     },
     [],
@@ -354,11 +327,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
   const value: WebSocketContextValue = {
     connectionStatus,
-    // Keep legacy `connected` boolean so consumers don't break during transition
-    connected: connectionStatus === "connected",
     subscribeToNote,
     unsubscribeFromNote,
-    sendNoteUpdate,
     sendTypingIndicator,
     sendOTSteps,
     getStompClient,

@@ -1,15 +1,15 @@
-import { useEffect, useRef, useCallback } from "react";
-import { collab, sendableSteps, getVersion, receiveTransaction } from "prosemirror-collab";
+import { collab, getVersion, receiveTransaction, sendableSteps } from "prosemirror-collab";
 import { Step } from "prosemirror-transform";
 import type { EditorView } from "prosemirror-view";
-import type { OTStepsBroadcastDetail, OTCatchUpDetail } from "../types";
+import { useCallback, useEffect, useRef } from "react";
+import type { OTCatchUpDetail, OTStepsBroadcastDetail } from "../types";
 
 export interface UseOTCollabParams {
   noteId: string | undefined;
   /** Called with the collab plugin so RichTextEditor can mount it. */
   onCollabPlugin: (plugin: ReturnType<typeof collab>) => void;
   /** Sends OT steps to the backend authority. */
-  sendOTSteps: (noteId: string, version: number, steps: object[]) => Promise<void>;
+  sendOTSteps: (noteId: string, version: number, steps: object[]) => Promise<boolean>;
   /**
    * Initial OT version received from the note-state WebSocket response.
    * `null` means the server version has not arrived yet — plugin creation is
@@ -49,8 +49,11 @@ export function useOTCollab({
   currentUserId,
 }: UseOTCollabParams): UseOTCollabReturn {
   const editorViewRef = useRef<EditorView | null>(null);
-  // Track whether a send is already in-flight to avoid double-submission.
-  const sendingRef = useRef(false);
+  // Wait for server round-trip before allowing another submit to avoid
+  // overlapping payloads based on stale versions.
+  const awaitingServerRef = useRef(false);
+  // Prevent re-sending the exact same sendable payload before OT state advances.
+  const lastPublishedKeyRef = useRef<string | null>(null);
   // Collab plugin instance — recreated when noteId or initialOtVersion changes.
   const collabPluginRef = useRef<ReturnType<typeof collab> | null>(null);
 
@@ -67,26 +70,47 @@ export function useOTCollab({
 
   // ── Flush sendable steps ──────────────────────────────────────────────────
 
-  const flushSteps = useCallback(async (view: EditorView) => {
-    if (!noteId || sendingRef.current) return;
+  const getSafeSendableSteps = useCallback((view: EditorView) => {
+    try {
+      return sendableSteps(view.state);
+    } catch {
+      // Collab plugin is not attached to this editor state yet.
+      return null;
+    }
+  }, []);
 
-    const sendable = sendableSteps(view.state);
+  const getSafeVersion = useCallback((view: EditorView): number | null => {
+    try {
+      return getVersion(view.state);
+    } catch {
+      // Collab plugin is not attached to this editor state yet.
+      return null;
+    }
+  }, []);
+
+  const flushSteps = useCallback(async (view: EditorView) => {
+    if (!noteId || awaitingServerRef.current) return;
+
+    const sendable = getSafeSendableSteps(view);
     if (!sendable) return;
 
-    sendingRef.current = true;
-    try {
-      await sendOTSteps(
-        noteId,
-        sendable.version,
-        sendable.steps.map((s) => s.toJSON() as object),
-      );
-    } finally {
-      sendingRef.current = false;
+    const stepsJson = sendable.steps.map((s) => s.toJSON() as object);
+    const payloadKey = `${sendable.version}:${JSON.stringify(stepsJson)}`;
+    if (payloadKey === lastPublishedKeyRef.current) {
+      return;
     }
-  }, [noteId, sendOTSteps]);
+
+    const published = await sendOTSteps(noteId, sendable.version, stepsJson);
+    if (published) {
+      lastPublishedKeyRef.current = payloadKey;
+      awaitingServerRef.current = true;
+    }
+  }, [noteId, sendOTSteps, getSafeSendableSteps]);
 
   const onEditorUpdate = useCallback((view: EditorView) => {
-    flushSteps(view);
+    void flushSteps(view).catch((error) => {
+      console.error("[OT] Failed to flush steps:", error);
+    });
   }, [flushSteps]);
 
   const setEditorView = useCallback((view: EditorView | null) => {
@@ -122,6 +146,10 @@ export function useOTCollab({
       const clientIds = steps.map(() => clientId);
       applySteps(view, steps, clientIds);
 
+      // OT state advanced; allow future publish attempts.
+      awaitingServerRef.current = false;
+      lastPublishedKeyRef.current = null;
+
       // After applying remote steps there may be pending local steps to retry.
       flushSteps(view);
     };
@@ -134,6 +162,8 @@ export function useOTCollab({
       if (steps.length === 0) {
         // Server has no history — client must re-bootstrap from the REST snapshot.
         // Dispatch a custom event so NoteEditor can trigger a hard reload.
+        awaitingServerRef.current = false;
+        lastPublishedKeyRef.current = null;
         window.dispatchEvent(new CustomEvent("ot-bootstrap-required"));
         return;
       }
@@ -143,7 +173,8 @@ export function useOTCollab({
       applySteps(view, rawSteps, clientIds);
 
       // Retry our pending steps now that we've caught up.
-      sendingRef.current = false;
+      awaitingServerRef.current = false;
+      lastPublishedKeyRef.current = null;
       flushSteps(view);
     };
 
@@ -165,7 +196,8 @@ export function useOTCollab({
       const view = editorViewRef.current;
       if (!view) return;
 
-      const localVersion = getVersion(view.state);
+      const localVersion = getSafeVersion(view);
+      if (localVersion === null) return;
       const expectedVersion = e.detail.version - e.detail.steps.length;
       if (localVersion !== expectedVersion) {
         // We are out of sync — request a resync via a dedicated event.
@@ -184,7 +216,7 @@ export function useOTCollab({
     return () => {
       window.removeEventListener("ot-steps", handleBroadcastVersionCheck as EventListener, true);
     };
-  }, [noteId]);
+  }, [noteId, getSafeVersion]);
 
   return { onEditorUpdate, setEditorView };
 }

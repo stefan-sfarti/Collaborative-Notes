@@ -1,6 +1,6 @@
 import axios from "axios";
 import { createApiError } from "../utils/errorUtils";
-import type { Note, NotePayload, UserResponse } from "../types";
+import type { Note, NotePayload, User, UserResponse } from "../types";
 
 export const API_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -130,6 +130,15 @@ const NoteService = {
       return response.data;
     } catch (error) {
       return _handleError("Error fetching current user:", error);
+    }
+  },
+
+  updateProfile: async (email: string, displayName: string): Promise<User> => {
+    try {
+      const response = await api.put<User>("/users/me", { email, displayName });
+      return response.data;
+    } catch (error) {
+      return _handleError("Error updating profile:", error);
     }
   },
 };

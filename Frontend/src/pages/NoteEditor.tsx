@@ -1,6 +1,6 @@
+import type { Plugin } from "prosemirror-state";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import type { Plugin } from "prosemirror-state";
 import ActiveUsersList from "../components/ActiveUsersList";
 import CollaboratorsList from "../components/CollaboratorsList";
 import EditorHeader from "../components/EditorHeader";
@@ -16,7 +16,7 @@ import type { NoteStateEventDetail } from "../types";
 
 function NoteEditor() {
   const { noteId } = useParams<{ noteId: string }>();
-  const { currentUser } = useAuth();
+  const { currentUser, getFreshToken } = useAuth();
 
   const {
     connectionStatus,
@@ -24,6 +24,7 @@ function NoteEditor() {
     unsubscribeFromNote,
     sendTypingIndicator,
     sendOTSteps,
+    getStompClient,
   } = useWebSocket();
 
   const {
@@ -92,6 +93,7 @@ function NoteEditor() {
   useCollaborationEvents({
     noteId,
     currentUser,
+    isOTActive: otVersion !== null,
     setNote,
     setLocalTitle,
     setLocalContent,
@@ -131,6 +133,49 @@ function NoteEditor() {
     };
     window.addEventListener("ot-bootstrap-required", handler);
     return () => window.removeEventListener("ot-bootstrap-required", handler);
+  }, [noteId]);
+
+  // If client/server OT versions diverge, ask the server for a targeted catch-up.
+  // This avoids requiring a full page refresh when an event is dropped.
+  const lastResyncRequestedVersionRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!noteId) return;
+
+    const requestResync = async (localVersion: number) => {
+      if (lastResyncRequestedVersionRef.current === localVersion) {
+        return;
+      }
+
+      const client = getStompClient();
+      if (!client || !client.connected) return;
+
+      const token = await getFreshToken();
+      if (!token) return;
+
+      lastResyncRequestedVersionRef.current = localVersion;
+      client.publish({
+        destination: `/app/notes/${noteId}/ot-resync`,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ version: localVersion, steps: [] }),
+      });
+    };
+
+    const handleMismatch: EventListener = (event) => {
+      const customEvent = event as CustomEvent<{ localVersion: number; serverVersion: number }>;
+      void requestResync(customEvent.detail.localVersion);
+    };
+
+    window.addEventListener("ot-version-mismatch", handleMismatch);
+    return () => {
+      window.removeEventListener("ot-version-mismatch", handleMismatch);
+    };
+  }, [noteId, getStompClient, getFreshToken]);
+
+  useEffect(() => {
+    lastResyncRequestedVersionRef.current = null;
   }, [noteId]);
 
   return (

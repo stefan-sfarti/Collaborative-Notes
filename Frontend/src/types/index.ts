@@ -14,7 +14,6 @@ export interface Note {
   collaboratorIds: string[];
   createdAt: string;
   updatedAt: string;
-  analysis?: Record<string, unknown>;
   version?: number;
 }
 
@@ -57,13 +56,10 @@ export type ConnectionStatus = "connected" | "reconnecting" | "disconnected";
 
 export interface WebSocketContextValue {
   connectionStatus: ConnectionStatus;
-  /** @deprecated Use connectionStatus === "connected" */
-  connected: boolean;
   subscribeToNote: (noteId: string) => Promise<string | null>;
   unsubscribeFromNote: (noteId: string) => Promise<void>;
-  sendNoteUpdate: (noteId: string, title: string, content: string) => Promise<void>;
   sendTypingIndicator: (noteId: string, isTyping: boolean) => Promise<void>;
-  sendOTSteps: (noteId: string, version: number, steps: object[]) => Promise<void>;
+  sendOTSteps: (noteId: string, version: number, steps: object[]) => Promise<boolean>;
   getStompClient: () => import("@stomp/stompjs").Client | null;
 }
 
@@ -113,12 +109,6 @@ export interface ApiError {
 }
 
 // ─── Custom DOM event payloads ────────────────────────────────────────────────
-
-export interface NoteUpdateEventDetail {
-  userId: string;
-  title: string;
-  content: string;
-}
 
 export interface NoteStateEventDetail {
   title?: string;

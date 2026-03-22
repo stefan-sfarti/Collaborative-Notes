@@ -7,7 +7,6 @@ import type {
   CollaboratorPayload,
   Note,
   NoteStateEventDetail,
-  NoteUpdateEventDetail,
   TypingIndicatorEventDetail,
   User,
   UserPresenceEventDetail,
@@ -17,6 +16,7 @@ import type {
 interface UseCollaborationEventsParams {
   noteId: string | undefined;
   currentUser: User | null;
+  isOTActive: boolean;
   setNote: Dispatch<SetStateAction<Note>>;
   setLocalTitle: Dispatch<SetStateAction<string>>;
   setLocalContent: Dispatch<SetStateAction<string>>;
@@ -29,6 +29,7 @@ interface UseCollaborationEventsParams {
 export function useCollaborationEvents({
   noteId,
   currentUser,
+  isOTActive,
   setNote,
   setLocalTitle,
   setLocalContent,
@@ -40,12 +41,17 @@ export function useCollaborationEvents({
   // Keep a ref to fetchedUserDetails for use inside event handlers
   // (useActiveUsers manages the actual map; we track it via lookupUserById calls)
   const lookupUserByIdRef = useRef(lookupUserById);
+  const isOTActiveRef = useRef(isOTActive);
   const recentPresenceEventsRef = useRef<Map<string, number>>(new Map());
   const suppressPresenceToastsUntilRef = useRef(0);
 
   useEffect(() => {
     lookupUserByIdRef.current = lookupUserById;
   }, [lookupUserById]);
+
+  useEffect(() => {
+    isOTActiveRef.current = isOTActive;
+  }, [isOTActive]);
 
   useEffect(() => {
     // Suppress initial presence burst right after joining to avoid noisy duplicate toasts.
@@ -56,41 +62,28 @@ export function useCollaborationEvents({
   useEffect(() => {
     if (!currentUser?.id || !noteId) return;
 
-    const handleNoteUpdate = (e: CustomEvent<NoteUpdateEventDetail>) => {
-      const data = e.detail;
-      if (data.userId !== currentUser.id) {
-        setNote((prev) => ({
-          ...prev,
-          title: data.title,
-          content: data.content,
-        }));
-        setLocalTitle(data.title || "");
-        setLocalContent(data.content || "");
-        lastSavedContentRef.current = {
-          title: data.title || "",
-          content: data.content || "",
-        };
-        toast("Document updated by another user");
-      }
-    };
-
     const handleNoteState = (e: CustomEvent<NoteStateEventDetail>) => {
       const data = e.detail;
 
-      setNote((prev) => ({
-        ...prev,
-        title: data.title || prev.title,
-        content: data.content || prev.content,
-      }));
+      // When OT is active, the editor state is owned by prosemirror-collab.
+      // Don't overwrite localContent/localTitle — that would desync the
+      // editor from the save manager and cause stale REST saves.
+      if (!isOTActiveRef.current) {
+        setNote((prev) => ({
+          ...prev,
+          title: data.title || prev.title,
+          content: data.content || prev.content,
+        }));
 
-      if (data.title !== undefined) setLocalTitle(data.title || "");
-      if (data.content !== undefined) setLocalContent(data.content || "");
+        if (data.title !== undefined) setLocalTitle(data.title || "");
+        if (data.content !== undefined) setLocalContent(data.content || "");
 
-      if (data.title !== undefined || data.content !== undefined) {
-        lastSavedContentRef.current = {
-          title: data.title || "",
-          content: data.content || "",
-        };
+        if (data.title !== undefined || data.content !== undefined) {
+          lastSavedContentRef.current = {
+            title: data.title || "",
+            content: data.content || "",
+          };
+        }
       }
 
       if (data.activeUsers) {
@@ -263,14 +256,12 @@ export function useCollaborationEvents({
       toast.error(errorData.message || "An error occurred");
     };
 
-    window.addEventListener("note-update", handleNoteUpdate);
     window.addEventListener("note-state", handleNoteState);
     window.addEventListener("user-presence", handleUserPresence);
     window.addEventListener("typing-indicator", handleTypingIndicator);
     window.addEventListener("websocket-error", handleError);
 
     return () => {
-      window.removeEventListener("note-update", handleNoteUpdate);
       window.removeEventListener("note-state", handleNoteState);
       window.removeEventListener("user-presence", handleUserPresence);
       window.removeEventListener("typing-indicator", handleTypingIndicator);
