@@ -2,14 +2,12 @@ package com.collabnotes.collabnotes.service;
 
 import java.util.List;
 
-import org.springframework.lang.NonNull;
-
 import com.collabnotes.collabnotes.dto.NoteDTO;
 
 public interface NoteService {
     NoteDTO createNote(NoteDTO noteDTO, String userId);
 
-    NoteDTO getNoteById(@NonNull String id, String userId);
+    NoteDTO getNoteById(String id, String userId);
 
     List<NoteDTO> getAllNotesByUser(String userId);
 

@@ -58,6 +58,32 @@ public class UserService {
     }
 
     @CacheEvict(value = "userCache", key = "#p0")
+    public UserResponse updateProfile(@NonNull String userId, @NonNull String email, @NonNull String displayName) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return null;
+        }
+
+        User userWithEmail = userRepository.findByEmail(email).orElse(null);
+        if (userWithEmail != null && !userWithEmail.getId().equals(userId)) {
+            throw new IllegalArgumentException("Email already taken");
+        }
+
+        user.setEmail(email);
+        user.setDisplayName(displayName);
+        user.setUpdatedAt(java.time.LocalDateTime.now());
+
+        User savedUser = userRepository.save(user);
+        logger.info("Updated profile for user: {}", userId);
+
+        return new UserResponse(
+                savedUser.getId(),
+                savedUser.getEmail(),
+                savedUser.getDisplayName(),
+                savedUser.getPhotoUrl());
+    }
+
+    @CacheEvict(value = "userCache", key = "#p0")
     public void refreshUserCache(String userId) {
         logger.debug("Cache refreshed for user: {}", userId);
     }

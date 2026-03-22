@@ -13,7 +13,6 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.lang.NonNull;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,7 +76,7 @@ public class NoteServiceImpl implements NoteService {
 
     @Override
     @Transactional(readOnly = true)
-    public NoteDTO getNoteById(@NonNull String id, String userId) {
+    public NoteDTO getNoteById(String id, String userId) {
         if (!self.hasNoteAccess(id, userId)) {
             return null;
         }
@@ -121,7 +120,8 @@ public class NoteServiceImpl implements NoteService {
         }
 
         // Optimistic version check: if the client sent a version, it must match the DB.
-        // Version 0 / null means the client is not tracking versions (legacy / initial rollout).
+        // Version 0 / null means the client is not tracking versions (legacy / initial
+        // rollout).
         if (noteDTO.getVersion() != null && noteDTO.getVersion() > 0
                 && !noteDTO.getVersion().equals(note.getVersion())) {
             throw new ConflictException(

@@ -20,7 +20,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
@@ -28,7 +27,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.collabnotes.collabnotes.dto.NoteDTO;
 import com.collabnotes.collabnotes.dto.UserResponse;
-import com.collabnotes.collabnotes.exception.ConflictException;
 import com.collabnotes.collabnotes.metrics.MetricsService;
 import com.collabnotes.collabnotes.service.NoteService;
 import com.collabnotes.collabnotes.service.NoteSessionService;
@@ -71,26 +69,21 @@ class NoteWebSocketControllerTest {
     @BeforeEach
     void setUp() {
         controller = new NoteWebSocketController(noteService, userService,
-                sessionService, messagingTemplate, metricsService, jwtUtil);
+                sessionService, messagingTemplate, metricsService, jwtUtil,
+                new com.collabnotes.collabnotes.service.ot.OTAuthorityService());
     }
 
     @Nested
     class UpdateNote {
 
         @Test
-        void whenValidTokenAndAccess_updatesAndReturnsBroadcastMessage() throws Exception {
+        void whenValidTokenAndAccess_broadcastsWithoutDbWrite() {
             when(jwtUtil.extractUserId("Bearer token")).thenReturn("user-1");
             when(noteService.hasNoteAccess("note-1", "user-1")).thenReturn(true);
-
-            NoteDTO updatedNote = new NoteDTO();
-            updatedNote.setVersion(5L);
-            when(noteService.updateNote(eq("note-1"), any(NoteDTO.class), eq("user-1")))
-                    .thenReturn(updatedNote);
 
             NoteContentUpdateMessage message = new NoteContentUpdateMessage();
             message.setTitle("Updated");
             message.setContent("New content");
-            message.setVersionNumber(4);
 
             NoteContentUpdateMessage result = controller.updateNote("note-1", message,
                     "Bearer token", headerAccessor);
@@ -98,7 +91,8 @@ class NoteWebSocketControllerTest {
             assertNotNull(result);
             assertEquals("user-1", result.getUserId());
             assertEquals("note-1", result.getNoteId());
-            assertEquals(5L, result.getVersionNumber());
+            // No DB interaction — broadcast only
+            verify(noteService, never()).updateNote(anyString(), any(NoteDTO.class), anyString());
         }
 
         @Test
@@ -123,70 +117,9 @@ class NoteWebSocketControllerTest {
         }
 
         @Test
-        void whenConflictException_sendsErrorToUserAndReturnsNull() throws Exception {
+        void recordsMetricsRegardlessOfOutcome() {
             when(jwtUtil.extractUserId("token")).thenReturn("user-1");
             when(noteService.hasNoteAccess("note-1", "user-1")).thenReturn(true);
-            when(noteService.updateNote(eq("note-1"), any(NoteDTO.class), eq("user-1")))
-                    .thenThrow(new ConflictException("Version conflict"));
-
-            NoteContentUpdateMessage message = new NoteContentUpdateMessage();
-            message.setTitle("T");
-            message.setContent("C");
-
-            NoteContentUpdateMessage result = controller.updateNote("note-1", message,
-                    "token", headerAccessor);
-
-            assertNull(result);
-            verify(messagingTemplate).convertAndSendToUser(eq("user-1"),
-                    eq("/queue/errors"), any(ErrorMessage.class));
-        }
-
-        @Test
-        void whenUpdateReturnsNull_throwsIllegalState() {
-            when(jwtUtil.extractUserId("token")).thenReturn("user-1");
-            when(noteService.hasNoteAccess("note-1", "user-1")).thenReturn(true);
-            when(noteService.updateNote(eq("note-1"), any(NoteDTO.class), eq("user-1")))
-                    .thenReturn(null);
-
-            NoteContentUpdateMessage message = new NoteContentUpdateMessage();
-            message.setTitle("T");
-            message.setContent("C");
-
-            assertThrows(IllegalStateException.class,
-                    () -> controller.updateNote("note-1", message, "token", headerAccessor));
-        }
-
-        @Test
-        void whenVersionNumberIsZero_sendsNullVersionToService() throws Exception {
-            when(jwtUtil.extractUserId("token")).thenReturn("user-1");
-            when(noteService.hasNoteAccess("note-1", "user-1")).thenReturn(true);
-
-            NoteDTO updatedNote = new NoteDTO();
-            updatedNote.setVersion(1L);
-
-            ArgumentCaptor<NoteDTO> dtoCaptor = ArgumentCaptor.forClass(NoteDTO.class);
-            when(noteService.updateNote(eq("note-1"), dtoCaptor.capture(), eq("user-1")))
-                    .thenReturn(updatedNote);
-
-            NoteContentUpdateMessage message = new NoteContentUpdateMessage();
-            message.setTitle("T");
-            message.setContent("C");
-            message.setVersionNumber(0);
-
-            controller.updateNote("note-1", message, "token", headerAccessor);
-
-            assertNull(dtoCaptor.getValue().getVersion());
-        }
-
-        @Test
-        void recordsMetricsRegardlessOfOutcome() throws Exception {
-            when(jwtUtil.extractUserId("token")).thenReturn("user-1");
-            when(noteService.hasNoteAccess("note-1", "user-1")).thenReturn(true);
-
-            NoteDTO updatedNote = new NoteDTO();
-            updatedNote.setVersion(1L);
-            when(noteService.updateNote(eq("note-1"), any(NoteDTO.class), eq("user-1")))
-                    .thenReturn(updatedNote);
 
             NoteContentUpdateMessage message = new NoteContentUpdateMessage();
             message.setTitle("T");
@@ -492,14 +425,9 @@ class NoteWebSocketControllerTest {
     class ResolveUserId {
 
         @Test
-        void whenTokenValid_returnsUserIdFromToken() throws Exception {
+        void whenTokenValid_returnsUserIdFromToken() {
             when(jwtUtil.extractUserId("Bearer tok")).thenReturn("user-1");
             when(noteService.hasNoteAccess("note-1", "user-1")).thenReturn(true);
-
-            NoteDTO updatedNote = new NoteDTO();
-            updatedNote.setVersion(1L);
-            when(noteService.updateNote(eq("note-1"), any(NoteDTO.class), eq("user-1")))
-                    .thenReturn(updatedNote);
 
             NoteContentUpdateMessage message = new NoteContentUpdateMessage();
             message.setTitle("T");
